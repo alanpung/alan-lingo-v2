@@ -1,0 +1,6 @@
+{
+  "name": "OpenLingo",
+  "description": "OpenSource AI connected to language learning",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
