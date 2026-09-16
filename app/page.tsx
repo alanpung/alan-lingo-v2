@@ -11,7 +11,7 @@ export default async function LandingPage() {
     <div className="flex min-h-screen flex-col items-center bg-lingo-bg px-4 py-16">
       <div className="max-w-2xl w-full text-center">
         {/* Header */}
-        <h1 className="text-6xl font-black text-lingo-green mb-4">OpenLingo</h1>
+        <h1 className="text-6xl font-black text-lingo-green mb-4">AlanLingo</h1>
         <p className="text-xl text-lingo-text-light mb-2">
           Connecting LLMs to language learning
         </p>
@@ -49,7 +49,7 @@ export default async function LandingPage() {
 
         {/* GitHub Link */}
         <a
-          href="https://github.com/pretzelai/openlingo"
+          href="https://github.com/alanpung/alan-lingo"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 rounded-full border border-lingo-border bg-white px-4 py-2 text-lingo-text-light hover:text-lingo-text hover:border-lingo-text-light transition-colors mb-4"
@@ -99,7 +99,7 @@ export default async function LandingPage() {
             <iframe
               className="absolute inset-0 w-full h-full"
               src="https://www.youtube.com/embed/YEYLhulhFUc"
-              title="OpenLingo Demo"
+              title="AlanLingo Demo"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             />
