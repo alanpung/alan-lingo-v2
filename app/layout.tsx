@@ -22,13 +22,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.openlingo.dev"),
-  title: "OpenLingo",
+  metadataBase: new URL("https://alan-lingo.vercel.app"),
+  title: "AlanLingo",
   description: "OpenSource AI connected to language learning",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "OpenLingo",
+    title: "AlanLingo",
     statusBarStyle: "default",
   },
   icons: {
