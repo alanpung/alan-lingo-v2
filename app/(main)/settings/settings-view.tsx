@@ -47,7 +47,6 @@ export function SettingsView({
       if (!res.ok) {
         throw new Error("Failed to delete account");
       }
-      // Redirect to home/login after deletion
       router.push("/");
       router.refresh();
     } catch (err: unknown) {
@@ -58,7 +57,7 @@ export function SettingsView({
   };
 
   return (
-    <div className="mx-auto max-w-2xl py-6">
+    <div className="mx-auto max-w-2xl py-6 pb-20">
       <h1 className="text-2xl font-black text-lingo-text mb-1">Settings</h1>
       <p className="text-sm text-lingo-text-light font-bold mb-6">
         Customize your language preferences and AI settings.
@@ -114,70 +113,70 @@ export function SettingsView({
         {prompts.map((p) => (
           <PromptEditor key={p.id} prompt={p} />
         ))}
+      </div>
 
-        {/* Danger Zone */}
-        <div className="rounded-2xl border-2 border-red-200 bg-red-50/50 p-5 mt-8">
-          <h2 className="text-lg font-black text-red-600 mb-1">Danger Zone</h2>
-          <p className="text-xs text-red-500 font-bold mb-4">
-            Irreversible and destructive actions for your account.
-          </p>
+      {/* Danger Zone */}
+      <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-6 mt-8 shadow-sm">
+        <h2 className="text-xl font-black text-red-600 mb-1">Danger Zone</h2>
+        <p className="text-xs text-red-500 font-bold mb-4">
+          Irreversible and destructive actions for your account.
+        </p>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-red-100">
-            <div>
-              <p className="text-sm font-bold text-lingo-text">Delete Account</p>
-              <p className="text-xs text-lingo-text-light">
-                Permanently remove your account, SRS words, and learning progress.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 active:scale-95 rounded-xl border-b-2 border-red-700 transition-all self-start sm:self-center"
-            >
-              Delete Account
-            </button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-red-200">
+          <div>
+            <p className="text-base font-bold text-lingo-text">Delete Account</p>
+            <p className="text-xs text-lingo-text-light">
+              Permanently delete your account, SRS vocabulary cards, and learning history.
+            </p>
           </div>
-
-          {/* Delete Confirmation Modal */}
-          {showDeleteConfirm && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border-2 border-lingo-border">
-                <h3 className="text-xl font-black text-red-600 mb-2">
-                  Are you absolutely sure?
-                </h3>
-                <p className="text-sm text-lingo-text-light mb-6">
-                  This action cannot be undone. This will permanently delete your account and all associated data including learning progress, chat memories, and custom prompts.
-                </p>
-
-                {deleteError && (
-                  <p className="text-sm text-red-600 font-bold mb-4">
-                    {deleteError}
-                  </p>
-                )}
-
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    disabled={isDeleting}
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="px-4 py-2 text-sm font-bold text-lingo-text border-2 border-lingo-border rounded-xl hover:bg-lingo-gray/30 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isDeleting}
-                    onClick={handleDeleteAccount}
-                    className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl border-b-2 border-red-800 disabled:opacity-50 transition-all"
-                  >
-                    {isDeleting ? "Deleting..." : "Yes, Delete My Account"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-5 py-2.5 text-sm font-bold text-white bg-red-600 hover:bg-red-700 active:scale-95 rounded-xl border-b-4 border-red-800 transition-all cursor-pointer whitespace-nowrap"
+          >
+            Delete Account
+          </button>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border-2 border-red-200">
+            <h3 className="text-xl font-black text-red-600 mb-2">
+              Are you absolutely sure?
+            </h3>
+            <p className="text-sm text-lingo-text-light mb-6">
+              This action cannot be undone. This will permanently delete your account and all associated data including learning progress, chat memories, and custom prompts.
+            </p>
+
+            {deleteError && (
+              <p className="text-sm text-red-600 font-bold mb-4">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-sm font-bold text-lingo-text border-2 border-lingo-border rounded-xl hover:bg-lingo-gray/30 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteAccount}
+                className="px-5 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl border-b-2 border-red-800 disabled:opacity-50 transition-all"
+              >
+                {isDeleting ? "Deleting..." : "Yes, Delete My Account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
