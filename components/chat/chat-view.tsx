@@ -124,19 +124,18 @@ export function ChatView({
     prevKeyboardOpen.current = isKeyboardOpen;
   }, [isKeyboardOpen, scrollToBottom]);
 
-  // Auto-send initial prompt (e.g. from "New Unit" / "New Article" buttons)
+ // Auto-send initial prompt (e.g. from "New Unit" / "New Article" buttons)
   const promptSent = useRef(false);
   useEffect(() => {
     if (
       initialPrompt &&
       !promptSent.current &&
-      !initialMessages?.length &&
-      language
+      !initialMessages?.length
     ) {
       promptSent.current = true;
       sendMessage({ text: initialPrompt });
     }
-  }, [initialPrompt, initialMessages, language, sendMessage]);
+  }, [initialPrompt, initialMessages, sendMessage]);
 
   // Focus input on mount
   useEffect(() => {
