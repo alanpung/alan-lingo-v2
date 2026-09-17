@@ -1,8 +1,14 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { getModel } from "@/lib/ai/models";
 import { db } from "@/lib/db";
 import { dictionaryWord, wordCache } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { langCodeToName } from "@/lib/prompts";
+import {
+  getDefaultTemplate,
+  interpolateTemplate,
+  langCodeToName,
+} from "@/lib/prompts";
 
 export interface WordEntry {
   word: string;
@@ -17,44 +23,75 @@ export interface WordEntry {
   goethe_b1_wordlist?: boolean;
 }
 
-export type WordLookupResult = {
-  found: boolean;
-  source?: "dictionary" | "ai";
-  word: string;
-  translation?: string;
-  pos?: string | null;
-  gender?: string | null;
-  cefrLevel?: string | null;
-  exampleNative?: string | null;
-  exampleEnglish?: string | null;
-};
-
-// In-memory cache for ultra-fast lookup and offline resilience
-const memoryWordCache = new Map<string, WordLookupResult>();
-
-let geminiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI {
-  if (!geminiClient) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is required");
-    }
-    geminiClient = new GoogleGenAI({ apiKey });
-  }
-  return geminiClient;
+function rowToWordEntry(row: typeof dictionaryWord.$inferSelect): WordEntry {
+  return {
+    word: row.word,
+    pos: row.pos ?? "",
+    cefr_level: row.cefrLevel ?? "",
+    english_translation: row.englishTranslation,
+    example_sentence_native: row.exampleSentenceNative ?? "",
+    example_sentence_english: row.exampleSentenceEnglish ?? "",
+    gender: row.gender ?? "",
+    useful_for_flashcard: row.usefulForFlashcard ?? true,
+    word_frequency: row.wordFrequency ?? undefined,
+    goethe_b1_wordlist: row.goetheB1Wordlist ?? undefined,
+  };
 }
+
+export async function loadLanguageRaw(langCode: string): Promise<WordEntry[]> {
+  try {
+    const rows = await db
+      .select()
+      .from(dictionaryWord)
+      .where(eq(dictionaryWord.language, langCode));
+
+    return rows.map(rowToWordEntry);
+  } catch (err) {
+    console.error("Failed to load raw language words from db:", err);
+    return [];
+  }
+}
+
+export async function loadLanguage(
+  langCode: string,
+): Promise<Map<string, WordEntry>> {
+  const words = await loadLanguageRaw(langCode);
+  const map = new Map<string, WordEntry>();
+  for (const w of words) {
+    map.set(w.word.toLowerCase(), w);
+  }
+  return map;
+}
+
+const wordAnalysisSchema = z.object({
+  baseForm: z.string().describe("The dictionary/base form of the word"),
+  translation: z.string().describe("English translation"),
+  pos: z
+    .string()
+    .describe(
+      "Part of speech (noun/verb/adjective/adverb/preposition/conjunction/article/pronoun)",
+    ),
+  gender: z
+    .string()
+    .nullable()
+    .describe("Grammatical gender if applicable (masculine/feminine/neuter)"),
+  cefrLevel: z.string().describe("CEFR level (A1/A2/B1/B2/C1/C2)"),
+  exampleNative: z
+    .string()
+    .describe("A simple example sentence using this word"),
+  exampleEnglish: z
+    .string()
+    .describe("English translation of the example sentence"),
+});
 
 export async function aiLookup(
   word: string,
   language: string,
-): Promise<WordLookupResult | null> {
+) {
   const normalizedWord = word.toLowerCase().trim();
-  const cacheKey = `${language}:${normalizedWord}`;
+  const target_language = langCodeToName[language] || language;
 
-  const inMemory = memoryWordCache.get(cacheKey);
-  if (inMemory) return inMemory;
-
-  // Try DB cache if database is reachable
+  // Check DB cache first
   try {
     const cached = await db
       .select()
@@ -66,9 +103,9 @@ export async function aiLookup(
 
     if (cached.length > 0) {
       const c = cached[0];
-      const result: WordLookupResult = {
-        found: true,
-        source: "ai",
+      return {
+        found: true as const,
+        source: "ai" as const,
         word: c.baseForm || normalizedWord,
         translation: c.translation,
         pos: c.pos || null,
@@ -77,64 +114,23 @@ export async function aiLookup(
         exampleNative: c.exampleNative || null,
         exampleEnglish: c.exampleEnglish || null,
       };
-      memoryWordCache.set(cacheKey, result);
-      return result;
     }
   } catch {
-    // Database connection optional, continue to AI lookup
+    // Database connection optional, proceed to AI lookup
   }
 
   try {
-    const target_language = langCodeToName[language] || language;
-    const prompt = `Analyze this ${target_language} word for a language learner. Provide base dictionary form, English translation, part of speech, grammatical gender (if applicable or null), CEFR level (A1, A2, B1, B2, C1, C2), a simple native example sentence, and its English translation. Word: "${word}"`;
+    const promptTemplate = getDefaultTemplate("word-analysis");
+    const prompt = interpolateTemplate(promptTemplate, { target_language, word });
 
-    const ai = getGeminiClient();
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            baseForm: { type: Type.STRING },
-            translation: { type: Type.STRING },
-            pos: { type: Type.STRING },
-            gender: { type: Type.STRING, nullable: true },
-            cefrLevel: { type: Type.STRING },
-            exampleNative: { type: Type.STRING },
-            exampleEnglish: { type: Type.STRING },
-          },
-          required: [
-            "baseForm",
-            "translation",
-            "pos",
-            "cefrLevel",
-            "exampleNative",
-            "exampleEnglish",
-          ],
-        },
-      },
+    const model = getModel("gemini-2.5-flash-lite");
+    const { object: analysis } = await generateObject({
+      model,
+      schema: wordAnalysisSchema,
+      prompt,
     });
 
-    if (!response.text) return null;
-    const analysis = JSON.parse(response.text);
-
-    const result: WordLookupResult = {
-      found: true,
-      source: "ai",
-      word: analysis.baseForm || word,
-      translation: analysis.translation,
-      pos: analysis.pos || null,
-      gender: analysis.gender || null,
-      cefrLevel: analysis.cefrLevel || null,
-      exampleNative: analysis.exampleNative || null,
-      exampleEnglish: analysis.exampleEnglish || null,
-    };
-
-    memoryWordCache.set(cacheKey, result);
-
-    // Save to DB cache in background if DB is up
+    // Cache in DB (fire and forget)
     db.insert(wordCache)
       .values({
         word: normalizedWord,
@@ -148,40 +144,58 @@ export async function aiLookup(
         exampleEnglish: analysis.exampleEnglish || null,
       })
       .onConflictDoNothing()
-      .catch(() => {});
+      .catch((err: unknown) => {
+        console.error("Failed to cache word:", err);
+      });
 
-    return result;
+    return {
+      found: true as const,
+      source: "ai" as const,
+      word: analysis.baseForm || word,
+      translation: analysis.translation,
+      pos: analysis.pos || null,
+      gender: analysis.gender || null,
+      cefrLevel: analysis.cefrLevel || null,
+      exampleNative: analysis.exampleNative || null,
+      exampleEnglish: analysis.exampleEnglish || null,
+    };
   } catch (err) {
-    console.error("AI lookup error:", err);
+    console.error("AI lookup failed:", err);
     return null;
   }
 }
+
+export type WordLookupResult = {
+  found: boolean;
+  source?: "dictionary" | "ai";
+  word: string;
+  translation?: string;
+  pos?: string | null;
+  gender?: string | null;
+  cefrLevel?: string | null;
+  exampleNative?: string | null;
+  exampleEnglish?: string | null;
+};
 
 export async function lookupWord(
   word: string,
   language: string,
 ): Promise<WordLookupResult> {
-  const cleanWord = word.trim().toLowerCase();
-  const cacheKey = `${language}:${cleanWord}`;
-
-  const inMemory = memoryWordCache.get(cacheKey);
-  if (inMemory) return inMemory;
-
-  // 1. Try dictionary database if available
+  // 1. Try dictionary database
   try {
     const [entry] = await db
       .select()
       .from(dictionaryWord)
       .where(
         and(
-          eq(dictionaryWord.word, cleanWord),
+          eq(dictionaryWord.word, word.toLowerCase()),
           eq(dictionaryWord.language, language),
         ),
       )
       .limit(1);
 
     if (entry) {
-      const res: WordLookupResult = {
+      return {
         found: true,
         source: "dictionary",
         word: entry.word,
@@ -192,14 +206,12 @@ export async function lookupWord(
         exampleNative: entry.exampleSentenceNative,
         exampleEnglish: entry.exampleSentenceEnglish,
       };
-      memoryWordCache.set(cacheKey, res);
-      return res;
     }
   } catch {
-    // Database query failed, fallback to AI
+    // Fall back to AI if DB is unreachable
   }
 
-  // 2. Try Gemini AI fallback
+  // 2. Try AI fallback
   const aiResult = await aiLookup(word, language);
   if (aiResult) {
     return aiResult;
@@ -207,4 +219,27 @@ export async function lookupWord(
 
   // 3. Not found
   return { found: false, word };
+}
+
+export async function getWordsByLevel(
+  language: string,
+  level: string,
+): Promise<WordEntry[]> {
+  const upperLevel = level.toUpperCase();
+  try {
+    const rows = await db
+      .select()
+      .from(dictionaryWord)
+      .where(
+        and(
+          eq(dictionaryWord.language, language),
+          eq(dictionaryWord.cefrLevel, upperLevel),
+        ),
+      );
+
+    return rows.filter((r) => r.usefulForFlashcard !== false).map(rowToWordEntry);
+  } catch (err) {
+    console.error("Failed to get words by level:", err);
+    return [];
+  }
 }
