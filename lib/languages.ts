@@ -1,7 +1,17 @@
-const displayNames = new Intl.DisplayNames(["en"], { type: "language" });
+let displayNames: Intl.DisplayNames | null = null;
+try {
+  displayNames = new Intl.DisplayNames(["en"], { type: "language" });
+} catch {
+  displayNames = null;
+}
 
-export function getLanguageName(code: string): string {
-  return displayNames.of(code) ?? code;
+export function getLanguageName(code?: string | null): string {
+  if (!code || typeof code !== "string") return "";
+  try {
+    return displayNames?.of(code) ?? code;
+  } catch {
+    return code;
+  }
 }
 
 /** Maps ISO 639-1 language codes to emoji flags (most associated country). */
@@ -38,7 +48,8 @@ const languageFlags: Record<string, string> = {
   bg: "\u{1F1E7}\u{1F1EC}", // 🇧🇬
 };
 
-export function getLanguageFlag(code: string): string {
+export function getLanguageFlag(code?: string | null): string {
+  if (!code || typeof code !== "string") return "";
   return languageFlags[code] ?? "";
 }
 
