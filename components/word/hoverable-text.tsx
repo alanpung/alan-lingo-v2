@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { WordPopover } from "./word-popover";
 import { useAudio } from "@/hooks/use-audio";
 
@@ -31,24 +31,19 @@ function parseInlineMarkdown(text: string): TextSegment[] {
   let match;
 
   while ((match = regex.exec(text)) !== null) {
-    // Plain text before this match
     if (match.index > lastIndex) {
       segments.push({ text: text.slice(lastIndex, match.index) });
     }
     if (match[2]) {
-      // ***bold-italic***
       segments.push({ text: match[2], bold: true, italic: true });
     } else if (match[3]) {
-      // **bold**
       segments.push({ text: match[3], bold: true });
     } else if (match[4]) {
-      // *italic*
       segments.push({ text: match[4], italic: true });
     }
     lastIndex = match.index + match[0].length;
   }
 
-  // Remaining plain text
   if (lastIndex < text.length) {
     segments.push({ text: text.slice(lastIndex) });
   }
@@ -64,16 +59,44 @@ export function HoverableText({
   noAudio,
 }: HoverableTextProps) {
   const [active, setActive] = useState<ActiveWord | null>(null);
+  const hoverTimer = useRef<NodeJS.Timeout | null>(null);
   const { play } = useAudio();
 
-  const handleWordClick = useCallback(
-    (e: React.MouseEvent<HTMLSpanElement>, word: string) => {
-      e.stopPropagation();
-      const rect = (e.target as HTMLElement).getBoundingClientRect();
+  const triggerInspect = useCallback(
+    (el: HTMLElement, word: string) => {
+      const rect = el.getBoundingClientRect();
       setActive({ word, rect });
       if (!noAudio) play(word, language);
     },
     [play, language, noAudio]
+  );
+
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent<HTMLSpanElement>, word: string) => {
+      const target = e.currentTarget;
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      // Brief 180ms delay to prevent accidental pops while quickly moving mouse
+      hoverTimer.current = setTimeout(() => {
+        triggerInspect(target, word);
+      }, 180);
+    },
+    [triggerInspect]
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  }, []);
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLSpanElement>, word: string) => {
+      e.stopPropagation();
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      triggerInspect(e.currentTarget, word);
+    },
+    [triggerInspect]
   );
 
   function renderWords(str: string, keyPrefix: string) {
@@ -89,8 +112,10 @@ export function HoverableText({
       return (
         <span
           key={`${keyPrefix}-${i}`}
-          onClick={(e) => handleWordClick(e, cleanWord)}
-          className="cursor-pointer rounded-sm transition-colors hover:bg-lingo-blue/10 hover:text-lingo-blue"
+          onMouseEnter={(e) => handleMouseEnter(e, cleanWord)}
+          onMouseLeave={handleMouseLeave}
+          onClick={(e) => handleClick(e, cleanWord)}
+          className="cursor-pointer border-b border-dotted border-foreground/30 rounded-sm px-0.5 transition-all duration-150 hover:border-lingo-blue hover:bg-lingo-blue/15 hover:text-lingo-blue"
         >
           {segment}
         </span>
