@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 import { FeedbackButton } from "@/components/feedback/feedback-button";
@@ -24,7 +25,9 @@ export function TopBar({ stats, githubStars }: TopBarProps) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b-2 border-lingo-border bg-white px-4 md:px-6">
       <div className="md:hidden">
-        <span className="text-xl font-black text-lingo-green">OpenLingo</span>
+        <Link href="/units" className="text-xl font-black text-rainbow tracking-tight">
+          AlanLingo
+        </Link>
       </div>
 
       {/* Stats */}

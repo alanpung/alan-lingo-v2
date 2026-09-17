@@ -151,7 +151,7 @@ export function createTools(userId: string, language?: string) {
           .string()
           .optional()
           .describe(
-            "Optional course UUID to assign this unit to. Overrides courseId from frontmatter if provided.",
+            "Optional course ID to assign this unit to. Overrides courseId from frontmatter if provided.",
           ),
       }),
       execute: async ({ markdown, courseId: courseIdParam }) => {

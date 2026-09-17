@@ -16,7 +16,20 @@ interface StandaloneUnitsProps {
 }
 
 export function StandaloneUnits({ units, isAdmin }: StandaloneUnitsProps) {
-  if (units.length === 0) return null;
+  if (units.length === 0) {
+    return (
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-bold text-lingo-text">My Units</h2>
+        <div className="rounded-2xl border-2 border-dashed border-lingo-border p-6 text-center">
+          <p className="text-sm font-medium text-lingo-text-light">
+            No standalone units yet. Click{" "}
+            <span className="font-bold text-lingo-text">+ New Unit</span> to create one, or{" "}
+            <span className="font-bold text-lingo-blue">✨ Generate with AI</span> to have the AI tutor build it for you!
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mb-8">
