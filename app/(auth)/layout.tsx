@@ -7,8 +7,8 @@ export default function AuthLayout({
     <div className="flex min-h-screen items-center justify-center bg-lingo-bg px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="text-4xl font-black text-rainbow tracking-tight">AlanLingo</h1>
-          <p className="mt-2 text-lingo-text-light">
+          <h1 className="relative z-20 text-4xl font-black text-rainbow tracking-tight pb-1 inline-block">AlanLingo</h1>
+          <p className="mt-2 text-lingo-text-light relative z-10">
             Learn a language. Have fun.
           </p>
         </div>

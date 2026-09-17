@@ -104,4 +104,8 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: transparent;
+  display: inline-block;
+  padding-bottom: 0.15em;
+  position: relative;
+  z-index: 10;
 }

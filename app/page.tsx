@@ -11,8 +11,12 @@ export default async function LandingPage() {
     <div className="flex min-h-screen flex-col items-center bg-lingo-bg px-4 py-16">
       <div className="max-w-2xl w-full text-center">
         {/* Header */}
-        <h1 className="text-6xl font-black text-rainbow mb-4 tracking-tight">AlanLingo</h1>
-        <p className="text-xl text-lingo-text-light mb-2">
+        <div>
+          <h1 className="relative z-20 text-6xl font-black text-rainbow tracking-tight pb-2 mb-2 inline-block leading-tight">
+            AlanLingo
+          </h1>
+        </div>
+        <p className="relative z-10 text-xl text-lingo-text-light mb-2">
           Connecting LLMs to language learning
         </p>
         <p className="text-base text-lingo-text-light mb-8">
