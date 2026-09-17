@@ -2,37 +2,10 @@ import matter from "gray-matter";
 import { parseExercisesFromMarkdown } from "./parser";
 import type { ParsedUnit, UnitLesson } from "./types";
 
-/**
- * Parse a self-contained unit markdown file.
- *
- * Format:
- * ```
- * ---
- * unitTitle: "..."
- * description: "..."
- * icon: "📘"
- * color: "#4CAF50"
- * targetLanguage: "de"
- * sourceLanguage: "en"
- * level: "B1"
- * courseId: "optional-uuid"
- * ---
- *
- * ---
- * lessonTitle: "Lesson 1"
- * description: "Learn greetings"
- * icon: "👋"
- * color: "#FF9600"
- * ---
- *
- * [multiple-choice]
- * ...
- * ```
- */
 export function parseUnitMarkdown(raw: string): ParsedUnit {
   const { data: fm, content } = matter(raw);
 
-  // Find all --- delimited lesson metadata blocks in the content
+  // 1. Try finding all --- delimited lesson metadata blocks in the content
   const lessonBlockRegex = /^---[ \t]*\n([\s\S]*?)\n---[ \t]*$/gm;
   const blocks: { meta: string; start: number; end: number }[] = [];
 
@@ -45,7 +18,7 @@ export function parseUnitMarkdown(raw: string): ParsedUnit {
     });
   }
 
-  const lessons: UnitLesson[] = blocks.map((block, i) => {
+  let lessons: UnitLesson[] = blocks.map((block, i) => {
     const nextStart =
       i + 1 < blocks.length ? blocks[i + 1].start : content.length;
     const exerciseContent = content.slice(block.end, nextStart).trim();
@@ -66,6 +39,51 @@ export function parseUnitMarkdown(raw: string): ParsedUnit {
       exercises: parseExercisesFromMarkdown(exerciseContent),
     };
   });
+
+  // 2. Fallback: If no --- lesson blocks found, look for ## Lesson or ## Headings
+  if (lessons.length === 0) {
+    const headingRegex = /^##\s+(?:Lesson\s*\d*[:\-]?\s*)?(.*?)$/gm;
+    const headingMatches: { title: string; start: number; end: number }[] = [];
+    let hMatch;
+    while ((hMatch = headingRegex.exec(content)) !== null) {
+      headingMatches.push({
+        title: hMatch[1]?.trim() || `Lesson ${headingMatches.length + 1}`,
+        start: hMatch.index,
+        end: hMatch.index + hMatch[0].length,
+      });
+    }
+
+    if (headingMatches.length > 0) {
+      lessons = headingMatches.map((hm, i) => {
+        const nextStart =
+          i + 1 < headingMatches.length
+            ? headingMatches[i + 1].start
+            : content.length;
+        const exerciseContent = content.slice(hm.end, nextStart).trim();
+        return {
+          title: hm.title,
+          description: undefined,
+          icon: undefined,
+          color: undefined,
+          exercises: parseExercisesFromMarkdown(exerciseContent),
+        };
+      });
+    } else if (content.trim().length > 0) {
+      // 3. Fallback: Parse exercises directly if no lesson blocks or headings exist
+      const exercises = parseExercisesFromMarkdown(content.trim());
+      if (exercises.length > 0) {
+        lessons = [
+          {
+            title: "Lesson 1",
+            description: (fm.description as string) ?? undefined,
+            icon: (fm.icon as string) ?? undefined,
+            color: (fm.color as string) ?? undefined,
+            exercises,
+          },
+        ];
+      }
+    }
+  }
 
   return {
     title: fm.unitTitle ?? fm.title ?? "Untitled",
