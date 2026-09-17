@@ -23,27 +23,15 @@ export const AVAILABLE_MODELS: {
   label: string;
   provider: string;
 }[] = [
+  { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", provider: "google" },
   { id: "gemini-3-flash-preview", label: "Gemini 3 Flash", provider: "google" },
-  { id: "gemini-3-pro-preview", label: "Gemini 3 Pro", provider: "google" },
-  {
-    id: "gemini-2.5-flash-lite",
-    label: "Gemini 2.5 Flash Lite",
-    provider: "google",
-  },
-  { id: "gpt-4o", label: "GPT-4o", provider: "openai" },
   { id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openai" },
-  {
-    id: "claude-sonnet-4-6",
-    label: "Claude Sonnet 4.6",
-    provider: "anthropic",
-  },
-  { id: "claude-opus-4-6", label: "Claude Opus 4.6", provider: "anthropic" },
+  { id: "gpt-4o", label: "GPT-4o", provider: "openai" },
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", provider: "anthropic" },
 ];
 
-/** Models available to regular (non-admin) users in the chat UI. */
-export const CHAT_AVAILABLE_MODELS = AVAILABLE_MODELS.filter(
-  (m) => m.id === "claude-sonnet-4-6",
-);
+/** Models available in the chat UI */
+export const CHAT_AVAILABLE_MODELS = AVAILABLE_MODELS;
 
 /** Comma-separated list of admin emails loaded from env. */
 const ADMIN_EMAILS: string[] = (process.env.ADMIN_EMAILS ?? "")
@@ -57,13 +45,13 @@ export function isAdminEmail(email: string | null | undefined): boolean {
 }
 
 /** Returns the model list appropriate for the given user email. */
-export function getModelsForUser(email: string | null | undefined) {
-  return isAdminEmail(email) ? AVAILABLE_MODELS : CHAT_AVAILABLE_MODELS;
+export function getModelsForUser(_email: string | null | undefined) {
+  return CHAT_AVAILABLE_MODELS;
 }
 
 export function getModel(id: string) {
-  const resolved =
-    AVAILABLE_MODELS.find((m) => m.id === id)?.provider + ":" + id;
+  const modelInfo = AVAILABLE_MODELS.find((m) => m.id === id);
+  const resolved = modelInfo ? `${modelInfo.provider}:${modelInfo.id}` : `google:gemini-3.5-flash`;
   return registry.languageModel(
     resolved as Parameters<typeof registry.languageModel>[0],
   );
