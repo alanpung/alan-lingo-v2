@@ -1,7 +1,6 @@
 import { createProviderRegistry } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || "dummy",
@@ -11,12 +10,7 @@ const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY || "dummy",
 });
 
-const anthropic = createAnthropic({
-  baseURL: process.env.LLM_PROXY_URL,
-  apiKey: process.env.LLM_PROXY_API_KEY || process.env.ANTHROPIC_API_KEY || "dummy",
-});
-
-const registry = createProviderRegistry({ google, openai, anthropic });
+const registry = createProviderRegistry({ google, openai });
 
 export const AVAILABLE_MODELS: {
   id: string;
@@ -27,7 +21,6 @@ export const AVAILABLE_MODELS: {
   { id: "gemini-3-flash-preview", label: "Gemini 3 Flash", provider: "google" },
   { id: "gpt-4o-mini", label: "GPT-4o Mini", provider: "openai" },
   { id: "gpt-4o", label: "GPT-4o", provider: "openai" },
-  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", provider: "anthropic" },
 ];
 
 /** Models available in the chat UI */
