@@ -149,7 +149,6 @@ export function createTools(userId: string, language?: string) {
           ),
         courseId: z
           .string()
-          .uuid()
           .optional()
           .describe(
             "Optional course UUID to assign this unit to. Overrides courseId from frontmatter if provided.",
