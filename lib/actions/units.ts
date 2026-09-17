@@ -492,3 +492,70 @@ export async function fetchCourseManagementData(
 
   return { success: true, course: courseData, availableUnits };
 }
+
+export async function createManualUnit(data: {
+  title: string;
+  targetLanguage: string;
+  sourceLanguage?: string;
+  level?: string;
+  courseId?: string;
+}): Promise<{ success: true; unitId: string } | { success: false; error: string }> {
+  const session = await requireSession();
+  const userId = session.user.id;
+
+  if (!data.title?.trim()) {
+    return { success: false, error: "Title is required" };
+  }
+  if (!data.targetLanguage) {
+    return { success: false, error: "Target language is required" };
+  }
+
+  const unitId = crypto.randomUUID();
+  const title = data.title.trim();
+  const targetLanguage = data.targetLanguage;
+  const sourceLanguage = data.sourceLanguage || "en";
+  const level = data.level || "A1";
+  const courseId = data.courseId || null;
+
+  const initialMarkdown = `---
+unitTitle: "${title}"
+description: "Practice exercises for ${title}"
+icon: "📘"
+color: "#4CAF50"
+targetLanguage: "${targetLanguage}"
+sourceLanguage: "${sourceLanguage}"
+level: "${level}"
+---
+
+---
+lessonTitle: "Lesson 1: Introduction"
+description: "Basic introduction and vocabulary"
+icon: "👋"
+color: "#FF9600"
+---
+
+[multiple-choice]
+text: "Select the correct option"
+choices:
+  - "Option 1" (correct)
+  - "Option 2"
+srsWords: "sample"
+`;
+
+  await db.insert(unit).values({
+    id: unitId,
+    courseId,
+    title,
+    description: `Practice exercises for ${title}`,
+    icon: "📘",
+    color: "#4CAF50",
+    markdown: initialMarkdown,
+    targetLanguage,
+    sourceLanguage,
+    level,
+    createdBy: userId,
+  });
+
+  revalidatePath("/units", "page");
+  return { success: true, unitId };
+}
