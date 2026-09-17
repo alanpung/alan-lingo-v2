@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { text } = await generateText({
-      model: getModel("gemini-3.5-flash")),
+      model: getModel("gemini-3.5-flash"),
       prompt,
     });
 
