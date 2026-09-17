@@ -51,10 +51,10 @@ export function CreateUnitForm({
           level,
         });
 
-        if (result.success && result.unitId) {
+        if (result.success) {
           router.push(`/units/edit/${result.unitId}`);
         } else {
-          setError(result.error ?? "Failed to create unit");
+          setError(result.error);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "An unexpected error occurred");
