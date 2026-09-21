@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useCallback, useState } from "react";
+import { detectTextLanguage, getLanguageLocale } from "@/lib/language-detector";
 
 // In-memory URL cache to avoid redundant API calls
 const urlCache = new Map<string, string>();
@@ -14,9 +15,31 @@ function speakWithBrowserSynth(text: string, language: string) {
   }
   try {
     window.speechSynthesis.cancel();
+    const resolvedLang = detectTextLanguage(text, { targetLanguage: language });
+    const targetLocale = getLanguageLocale(resolvedLang);
+
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language.length === 2 ? `${language}-${language.toUpperCase()}` : language;
+    utterance.lang = targetLocale;
     utterance.rate = 0.9;
+
+    // Pick best matching voice if available
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      const exactVoice = voices.find(
+        (v) => v.lang.toLowerCase() === targetLocale.toLowerCase()
+      );
+      const prefixVoice = voices.find(
+        (v) =>
+          v.lang.toLowerCase().startsWith(resolvedLang.toLowerCase()) ||
+          v.lang.toLowerCase().startsWith(targetLocale.slice(0, 2).toLowerCase())
+      );
+      if (exactVoice) {
+        utterance.voice = exactVoice;
+      } else if (prefixVoice) {
+        utterance.voice = prefixVoice;
+      }
+    }
+
     window.speechSynthesis.speak(utterance);
   } catch (err) {
     console.warn("Browser speech synthesis failed:", err);
@@ -68,15 +91,16 @@ export function useAudio() {
     async (text: string, language: string) => {
       stop();
       const nonce = nonceRef.current;
+      const resolvedLang = detectTextLanguage(text, { targetLanguage: language });
 
       setLoading(true);
       let url: string | null = null;
       try {
-        url = await fetchUrl(text, language);
+        url = await fetchUrl(text, resolvedLang);
       } catch (err) {
         console.warn("AI TTS fetch failed, falling back to browser speech synthesis:", err);
         if (nonce === nonceRef.current) {
-          speakWithBrowserSynth(text, language);
+          speakWithBrowserSynth(text, resolvedLang);
         }
         return;
       } finally {
@@ -91,7 +115,7 @@ export function useAudio() {
       audio.onerror = () => {
         console.warn("Audio element failed to play URL, falling back to speech synthesis:", url);
         if (nonce === nonceRef.current) {
-          speakWithBrowserSynth(text, language);
+          speakWithBrowserSynth(text, resolvedLang);
         }
       };
 
@@ -100,7 +124,7 @@ export function useAudio() {
       } catch (playErr) {
         console.warn("audio.play() error:", playErr);
         if (nonce === nonceRef.current) {
-          speakWithBrowserSynth(text, language);
+          speakWithBrowserSynth(text, resolvedLang);
         }
       }
     },
@@ -109,7 +133,10 @@ export function useAudio() {
 
   const prefetch = useCallback(
     (texts: string[], language: string) => {
-      texts.forEach((text) => fetchUrl(text, language).catch(() => {}));
+      texts.forEach((text) => {
+        const resolvedLang = detectTextLanguage(text, { targetLanguage: language });
+        fetchUrl(text, resolvedLang).catch(() => {});
+      });
     },
     [fetchUrl]
   );

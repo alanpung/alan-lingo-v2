@@ -5,6 +5,7 @@ import {
   interpolateTemplate,
   langCodeToName,
 } from "@/lib/prompts";
+import { detectTextLanguage } from "@/lib/language-detector";
 
 // Lazy initialization of Gemini client
 let geminiClient: GoogleGenAI | null = null;
@@ -64,8 +65,9 @@ export async function generateSpeech(
   language: string,
 ): Promise<{ url: string; buffer: Buffer }> {
   const normalized = text.trim();
-  const hash = createHash("md5").update(`${language}:${normalized.toLowerCase()}`).digest("hex");
-  const cacheKey = `${language}/${hash}`;
+  const resolvedLang = detectTextLanguage(normalized, { targetLanguage: language });
+  const hash = createHash("md5").update(`${resolvedLang}:${normalized.toLowerCase()}`).digest("hex");
+  const cacheKey = `${resolvedLang}/${hash}`;
 
   const existing = memoryAudioCache.get(cacheKey);
   if (existing) {
@@ -75,7 +77,7 @@ export async function generateSpeech(
     };
   }
 
-  const target_language = langCodeToName[language] || language;
+  const target_language = langCodeToName[resolvedLang] || resolvedLang;
   let customInstructions = "";
   try {
     const ttsTemplate = getDefaultTemplate("tts-instructions");

@@ -9,6 +9,7 @@ import {
   interpolateTemplate,
   langCodeToName,
 } from "@/lib/prompts";
+import { detectTextLanguage } from "@/lib/language-detector";
 
 export interface WordEntry {
   word: string;
@@ -87,9 +88,16 @@ const wordAnalysisSchema = z.object({
 export async function aiLookup(
   word: string,
   language: string,
+  nativeLanguage?: string,
 ) {
   const normalizedWord = word.toLowerCase().trim();
-  const target_language = langCodeToName[language] || language;
+  const wordLang = detectTextLanguage(word, { targetLanguage: language });
+  const target_language = langCodeToName[wordLang] || wordLang;
+  const native_language = nativeLanguage
+    ? langCodeToName[nativeLanguage] || nativeLanguage
+    : wordLang === "en"
+      ? "Chinese"
+      : "English";
 
   // Check DB cache first
   try {
@@ -97,7 +105,7 @@ export async function aiLookup(
       .select()
       .from(wordCache)
       .where(
-        and(eq(wordCache.word, normalizedWord), eq(wordCache.language, language)),
+        and(eq(wordCache.word, normalizedWord), eq(wordCache.language, wordLang)),
       )
       .limit(1);
 
@@ -120,10 +128,30 @@ export async function aiLookup(
   }
 
   try {
-    const promptTemplate = getDefaultTemplate("word-analysis");
-    const prompt = interpolateTemplate(promptTemplate, { target_language, word });
+    let prompt: string;
+    if (wordLang === "en") {
+      prompt = `Analyze the English word "${word}".
+Return:
+- baseForm: dictionary/base form of the word
+- translation: accurate translation or definition in ${native_language}
+- pos: part of speech (noun, verb, adjective, etc.)
+- gender: null
+- cefrLevel: CEFR level (A1, A2, B1, B2, C1, C2)
+- exampleNative: a natural example sentence in English using this word
+- exampleEnglish: translation of the example sentence in ${native_language}`;
+    } else {
+      prompt = `Analyze the ${target_language} word "${word}".
+Return:
+- baseForm: dictionary/base form of the word
+- translation: accurate translation or definition in ${native_language}
+- pos: part of speech (noun, verb, adjective, etc.)
+- gender: grammatical gender if applicable (or null)
+- cefrLevel: CEFR level (A1, A2, B1, B2, C1, C2)
+- exampleNative: a natural example sentence in ${target_language} using this word
+- exampleEnglish: translation of the example sentence in ${native_language}`;
+    }
 
-    const model = getModel("gemini-2.5-flash-lite");
+    const model = getModel("gemini-3.5-flash-lite");
     const { object: analysis } = await generateObject({
       model,
       schema: wordAnalysisSchema,
@@ -134,7 +162,7 @@ export async function aiLookup(
     db.insert(wordCache)
       .values({
         word: normalizedWord,
-        language,
+        language: wordLang,
         baseForm: analysis.baseForm || normalizedWord,
         translation: analysis.translation,
         pos: analysis.pos || null,
@@ -180,39 +208,46 @@ export type WordLookupResult = {
 export async function lookupWord(
   word: string,
   language: string,
+  nativeLanguage?: string,
 ): Promise<WordLookupResult> {
-  // 1. Try dictionary database
+  const wordLang = detectTextLanguage(word, { targetLanguage: language });
+
+  // 1. Try dictionary database with wordLang or course language
   try {
-    const [entry] = await db
+    const entries = await db
       .select()
       .from(dictionaryWord)
       .where(
         and(
           eq(dictionaryWord.word, word.toLowerCase()),
-          eq(dictionaryWord.language, language),
         ),
       )
-      .limit(1);
+      .limit(5);
 
-    if (entry) {
+    // Look for exact language match
+    const exactMatch = entries.find(
+      (e) => e.language === wordLang || e.language === language
+    ) || entries[0];
+
+    if (exactMatch) {
       return {
         found: true,
         source: "dictionary",
-        word: entry.word,
-        translation: entry.englishTranslation,
-        pos: entry.pos,
-        gender: entry.gender || null,
-        cefrLevel: entry.cefrLevel,
-        exampleNative: entry.exampleSentenceNative,
-        exampleEnglish: entry.exampleSentenceEnglish,
+        word: exactMatch.word,
+        translation: exactMatch.englishTranslation,
+        pos: exactMatch.pos,
+        gender: exactMatch.gender || null,
+        cefrLevel: exactMatch.cefrLevel,
+        exampleNative: exactMatch.exampleSentenceNative,
+        exampleEnglish: exactMatch.exampleSentenceEnglish,
       };
     }
   } catch {
     // Fall back to AI if DB is unreachable
   }
 
-  // 2. Try AI fallback
-  const aiResult = await aiLookup(word, language);
+  // 2. Try AI fallback with detected language
+  const aiResult = await aiLookup(word, wordLang, nativeLanguage);
   if (aiResult) {
     return aiResult;
   }

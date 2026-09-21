@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { addOrFailWord } from "@/lib/actions/srs";
+import { Volume2 } from "lucide-react";
+import { useAudio } from "@/hooks/use-audio";
 
 interface WordData {
   found: boolean;
@@ -34,6 +36,7 @@ export function WordTooltip({ word, language }: WordTooltipProps) {
   const [data, setData] = useState<WordData | null>(null);
   const [loading, setLoading] = useState(true);
   const [srsStatus, setSrsStatus] = useState<"added" | "failed" | null>(null);
+  const { play } = useAudio();
 
   // Fetch on mount
   useEffect(() => {
@@ -91,14 +94,25 @@ export function WordTooltip({ word, language }: WordTooltipProps) {
   return (
     <div className="p-4 space-y-3">
       {/* Word + translation */}
-      <div>
-        <p className="text-lg font-bold text-lingo-text">{data.word}</p>
-        {isInflected && (
-          <p className="text-xs text-lingo-text-light">
-            base form of &ldquo;{word}&rdquo;
-          </p>
-        )}
-        <p className="text-base text-lingo-blue font-medium">{data.translation}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-lg font-bold text-lingo-text break-words">{data.word}</p>
+          {isInflected && (
+            <p className="text-xs text-lingo-text-light">
+              base form of &ldquo;{word}&rdquo;
+            </p>
+          )}
+          <p className="text-base text-lingo-blue font-medium mt-0.5">{data.translation}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => play(data.word, language)}
+          className="p-1.5 rounded-lg hover:bg-lingo-gray/60 text-lingo-blue transition-colors flex-shrink-0"
+          title="Listen to word"
+          aria-label="Listen to word"
+        >
+          <Volume2 className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Badges */}
@@ -123,7 +137,18 @@ export function WordTooltip({ word, language }: WordTooltipProps) {
       {/* Example */}
       {data.exampleNative && (
         <div className="rounded-lg bg-lingo-bg p-2.5">
-          <p className="text-sm font-medium text-lingo-text">{data.exampleNative}</p>
+          <div className="flex items-start justify-between gap-1.5">
+            <p className="text-sm font-medium text-lingo-text flex-1">{data.exampleNative}</p>
+            <button
+              type="button"
+              onClick={() => play(data.exampleNative!, language)}
+              className="p-1 rounded hover:bg-lingo-gray/50 text-lingo-text-light hover:text-lingo-blue transition-colors flex-shrink-0"
+              title="Listen to example sentence"
+              aria-label="Listen to example sentence"
+            >
+              <Volume2 className="h-4 w-4" />
+            </button>
+          </div>
           {data.exampleEnglish && (
             <p className="text-xs text-lingo-text-light mt-1">{data.exampleEnglish}</p>
           )}

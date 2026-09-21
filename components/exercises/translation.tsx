@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { TranslationExercise } from "@/lib/content/types";
 import { useExercise } from "@/hooks/use-exercise";
 import { useAudio } from "@/hooks/use-audio";
@@ -9,6 +9,7 @@ import { ExerciseShell } from "./exercise-shell";
 import { HoverableText } from "@/components/word/hoverable-text";
 import { AudioSpinner } from "@/components/audio-spinner";
 import { ReplayButton } from "@/components/replay-button";
+import { detectTextLanguage } from "@/lib/language-detector";
 
 interface Props {
   exercise: TranslationExercise;
@@ -24,10 +25,25 @@ export function Translation({ exercise, onResult, onContinue, language, autoplay
   const { status, checkAnswer } = useExercise();
   const { play, stop, loading: audioLoading } = useAudio();
 
+  const sentenceLang = useMemo(
+    () => detectTextLanguage(exercise.sentence, { targetLanguage: language }),
+    [exercise.sentence, language]
+  );
+  const textLang = useMemo(
+    () => detectTextLanguage(exercise.text, { targetLanguage: language }),
+    [exercise.text, language]
+  );
+  const answerLang = useMemo(
+    () => detectTextLanguage(exercise.answer, { targetLanguage: language }),
+    [exercise.answer, language]
+  );
+
   useEffect(() => {
-    if (autoplayAudio && !exercise.noAudio?.includes("sentence")) play(exercise.sentence, language);
+    if (autoplayAudio && !exercise.noAudio?.includes("sentence")) {
+      play(exercise.sentence, sentenceLang);
+    }
     return stop;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [exercise.sentence, sentenceLang, autoplayAudio, play, stop, exercise.noAudio]);
 
   function handleCheck() {
     const trimmed = input.trim();
@@ -45,18 +61,18 @@ export function Translation({ exercise, onResult, onContinue, language, autoplay
       canCheck={input.trim().length > 0}
       correctAnswer={exercise.answer}
       correctedMarkdown={correctedMarkdown}
-      language={language}
+      language={answerLang}
     >
       <h2 className="text-xl font-bold text-lingo-text mb-2">
-        <HoverableText text={exercise.text} language={language} noAudio={exercise.noAudio?.includes("text")} />
+        <HoverableText text={exercise.text} language={textLang} noAudio={exercise.noAudio?.includes("text")} />
       </h2>
       <AudioSpinner loading={audioLoading} />
       <div className="flex items-start gap-2 mb-6">
         <p className="text-lg text-lingo-text-light">
-          &ldquo;<HoverableText text={exercise.sentence} language={language} noAudio={exercise.noAudio?.includes("sentence")} />&rdquo;
+          &ldquo;<HoverableText text={exercise.sentence} language={sentenceLang} noAudio={exercise.noAudio?.includes("sentence")} />&rdquo;
         </p>
         {!exercise.noAudio?.includes("sentence") && (
-          <ReplayButton onPlay={() => play(exercise.sentence, language)} />
+          <ReplayButton onPlay={() => play(exercise.sentence, sentenceLang)} />
         )}
       </div>
       <input
