@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import {
@@ -14,6 +15,10 @@ import { BrowseUnits } from "../browse-units";
 export default async function BrowsePage() {
   const session = await auth.api.getSession({ headers: await headers() });
   const userId = session?.user?.id;
+
+  if (!userId) {
+    redirect("/sign-in?redirect=/units/browse");
+  }
 
   const nativeLanguage = userId ? await getNativeLanguage(userId) : null;
   const targetLanguage = userId ? await getTargetLanguage(userId) : null;

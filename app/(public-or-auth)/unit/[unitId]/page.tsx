@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import { db } from "@/lib/db";
+import { user, userUnitLibrary } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { getUnitWithContent } from "@/lib/db/queries/courses";
 import { getUnitProgress } from "@/lib/actions/progress";
+import { isAdminEmail } from "@/lib/ai/models";
 import { StandaloneUnitPath } from "./standalone-unit-path";
 import { PublicUnitPath } from "./public-unit-path";
+import { UnitLibraryBanner } from "./unit-library-banner";
 import { HoverableText } from "@/components/word/hoverable-text";
 import { getLanguageName } from "@/lib/languages";
 import { getSession } from "@/lib/auth-server";
@@ -79,11 +84,23 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
   const isPublic = unit.visibility === "public";
   const isOwner = session?.user?.id === unit.createdBy;
 
-  if (!session && !isPublic) {
+  // Check if created by site admin
+  let isCreatedByAdmin = false;
+  if (unit.createdBy) {
+    const [creator] = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, unit.createdBy));
+    isCreatedByAdmin = creator?.email ? isAdminEmail(creator.email) : false;
+  }
+
+  const isAccessible = isPublic || isCreatedByAdmin;
+
+  if (!session && !isAccessible) {
     notFound();
   }
 
-  if (session && !isPublic && !isOwner) {
+  if (session && !isAccessible && !isOwner) {
     notFound();
   }
 
@@ -124,7 +141,7 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
     );
   }
 
-  // Authenticated user: show full experience with progress
+  // Authenticated user: show full experience with progress and library addition
   if (session) {
     let completions: { unitId: string; lessonIndex: number }[] = [];
     try {
@@ -134,8 +151,38 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
       // Progress may fail for units not owned by user, that's ok
     }
 
+    let isInLibrary = false;
+    if (!isOwner) {
+      const [libRow] = await db
+        .select({ unitId: userUnitLibrary.unitId })
+        .from(userUnitLibrary)
+        .where(
+          and(
+            eq(userUnitLibrary.userId, session.user.id),
+            eq(userUnitLibrary.unitId, unitId)
+          )
+        );
+      isInLibrary = !!libRow;
+    }
+
     return (
       <div className="mx-auto max-w-lg">
+        <div className="mb-4 flex items-center justify-between">
+          <Link
+            href="/units"
+            className="text-xs font-bold text-lingo-text-light hover:text-lingo-text transition-colors flex items-center gap-1"
+          >
+            &larr; Back to My Units
+          </Link>
+        </div>
+
+        {!isOwner && (
+          <UnitLibraryBanner
+            unitId={unitId}
+            initialIsInLibrary={isInLibrary}
+          />
+        )}
+
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-black text-lingo-text">
             <HoverableText text={unit.title} language={unit.targetLanguage} />

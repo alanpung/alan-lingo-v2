@@ -22,9 +22,20 @@ export function StandaloneUnits({ units, isAdmin }: StandaloneUnitsProps) {
         <h2 className="mb-3 text-lg font-bold text-lingo-text">My Units</h2>
         <div className="rounded-2xl border-2 border-dashed border-lingo-border p-6 text-center">
           <p className="text-sm font-medium text-lingo-text-light">
-            No standalone units yet. Click{" "}
-            <span className="font-bold text-lingo-text">+ New Unit</span> to create one, or{" "}
-            <span className="font-bold text-lingo-blue">✨ Generate with AI</span> to have the AI tutor build it for you!
+            {isAdmin ? (
+              <>
+                No standalone units yet. Click{" "}
+                <span className="font-bold text-lingo-text">+ New Unit</span> above to create one.
+              </>
+            ) : (
+              <>
+                No units added yet.{" "}
+                <Link href="/units/browse" className="font-bold text-lingo-blue hover:underline">
+                  Browse public units
+                </Link>{" "}
+                or open a unit link shared with you to add units to your page!
+              </>
+            )}
           </p>
         </div>
       </section>
@@ -69,16 +80,11 @@ function StandaloneUnitCard({
       : 0;
   const isPublic = unit.visibility === "public";
   const hasParseError = unit.parseError === true;
-
-  const isEditLocked = isPublic && !isAdmin;
   const isActionPending = isPending || activeAction !== null;
 
   function handleMakePublic() {
     const confirmed = window.confirm(
-      "Are you sure you want to make this unit public?\n\n" +
-        "Once public, this unit cannot be edited anymore. " +
-        "Only admins can make changes to public content. " +
-        "All users will have access to this unit and your name will be shown as the author."
+      "Make this unit public?\n\nAll users will be able to browse this unit and add it to their units."
     );
     if (!confirmed) return;
 
@@ -131,8 +137,9 @@ function StandaloneUnitCard({
 
   function handleDelete() {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this unit?\n\n" +
-        "This action cannot be undone."
+      isPublic
+        ? "Are you sure you want to delete this public unit?\n\nThis will remove the unit completely, including from any users who added it."
+        : "Are you sure you want to delete this unit?\n\nThis action cannot be undone."
     );
     if (!confirmed) return;
 
@@ -169,15 +176,21 @@ function StandaloneUnitCard({
               Can&apos;t be parsed
             </span>
           )}
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-              isPublic
-                ? "bg-lingo-green/15 text-lingo-green"
-                : "bg-lingo-gray text-lingo-text-light"
-            }`}
-          >
-            {isPublic ? "Public" : "Private"}
-          </span>
+          {unit.isOwner ? (
+            <span
+              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                isPublic
+                  ? "bg-lingo-green/15 text-lingo-green"
+                  : "bg-lingo-gray text-lingo-text-light"
+              }`}
+            >
+              {isPublic ? "🌐 Public" : "🔒 Private"}
+            </span>
+          ) : unit.isInLibrary ? (
+            <span className="shrink-0 rounded-full bg-lingo-blue/15 text-lingo-blue px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+              📚 In My Units
+            </span>
+          ) : null}
         </div>
         <p className="text-sm text-lingo-text-light truncate">
           {unit.description}
@@ -250,36 +263,37 @@ function StandaloneUnitCard({
       )}
       {showActions && (
         <div className="border-t border-lingo-border px-4 py-2 flex flex-wrap items-center gap-2">
-          {isPublic && <CopyLinkButton path={`/unit/${unit.id}`} />}
-          {unit.isOwner && (
+          {(isPublic || unit.isOwner || isAdmin) && (
+            <CopyLinkButton path={`/unit/${unit.id}`} />
+          )}
+          {(unit.isOwner || isAdmin) && (
             <>
-              {/* Edit Markdown: shown if private, or if admin (even if public) */}
-              {(!isPublic || isAdmin) && (
-                <Link
-                  href={`/units/edit/${unit.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-lingo-blue hover:bg-lingo-blue/10 transition-colors"
+              <Link
+                href={`/units/edit/${unit.id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-lingo-blue hover:bg-lingo-blue/10 transition-colors"
+              >
+                <svg
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
                 >
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
-                    />
-                  </svg>
-                  Edit Markdown
-                </Link>
-              )}
-              {!isPublic && (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+                  />
+                </svg>
+                Edit Markdown
+              </Link>
+
+              {!isPublic ? (
                 <button
                   onClick={handleMakePublic}
                   disabled={isActionPending}
                   className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-lingo-green hover:bg-lingo-green/10 transition-colors disabled:opacity-50"
+                  title="Make this unit public so all users can browse and add it"
                 >
                   {activeAction === "make-public" ? (
                     <>
@@ -305,17 +319,17 @@ function StandaloneUnitCard({
                     </>
                   )}
                 </button>
-              )}
-              {!isEditLocked && (
+              ) : (
                 <button
-                  onClick={handleDelete}
+                  onClick={handleMakePrivate}
                   disabled={isActionPending}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                  title="Make this unit private so it is hidden from public browse"
                 >
-                  {activeAction === "delete" ? (
+                  {activeAction === "make-private" ? (
                     <>
-                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/30 border-t-red-500" />
-                      Deleting...
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-600/30 border-t-amber-600" />
+                      Making Private...
                     </>
                   ) : (
                     <>
@@ -329,33 +343,60 @@ function StandaloneUnitCard({
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                          d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
                         />
                       </svg>
-                      Delete
+                      Make Private
                     </>
                   )}
                 </button>
               )}
-              {/* Owner of public unit, not admin: show read-only indicator */}
-              {isEditLocked && (
-                <span className="text-xs text-lingo-text-light italic">
-                  Public — read-only
-                </span>
-              )}
+
+              <button
+                onClick={handleDelete}
+                disabled={isActionPending}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                title={isPublic ? "Delete this public unit" : "Delete this unit"}
+              >
+                {activeAction === "delete" ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/30 border-t-red-500" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                      />
+                    </svg>
+                    Delete
+                  </>
+                )}
+              </button>
             </>
           )}
-          {/* Admin: Make Private button */}
-          {isAdmin && isPublic && (
+
+          {/* Non-owner library units: Delete from My Units button */}
+          {!unit.isOwner && unit.isInLibrary && (
             <button
-              onClick={handleMakePrivate}
+              onClick={handleRemoveFromLibrary}
               disabled={isActionPending}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+              title="Delete this unit from My Units"
             >
-              {activeAction === "make-private" ? (
+              {activeAction === "remove" ? (
                 <>
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/30 border-t-red-500" />
-                  Making Private...
+                  Removing...
                 </>
               ) : (
                 <>
@@ -369,35 +410,12 @@ function StandaloneUnitCard({
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
+                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
                     />
                   </svg>
-                  Make Private
+                  Delete from My Units
                 </>
               )}
-            </button>
-          )}
-          {/* Non-owner library units: Remove button */}
-          {!unit.isOwner && unit.isInLibrary && (
-            <button
-              onClick={handleRemoveFromLibrary}
-              disabled={isActionPending}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-lingo-text-light hover:bg-lingo-gray/50 transition-colors disabled:opacity-50"
-            >
-              <svg
-                className="h-3.5 w-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-              Remove
             </button>
           )}
         </div>

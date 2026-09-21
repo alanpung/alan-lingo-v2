@@ -26,19 +26,25 @@ export function MyCourses({ courses, isAdmin }: MyCoursesProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [managingCourseId, setManagingCourseId] = useState<string | null>(null);
 
+  if (!isAdmin && courses.length === 0) {
+    return null;
+  }
+
   return (
     <section className="mb-8">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-bold text-lingo-text">My Courses</h2>
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="rounded-xl border-2 border-lingo-border bg-white px-3 py-1.5 text-xs font-bold text-lingo-text shadow-[0_2px_0_0] shadow-lingo-border transition-all hover:border-lingo-green hover:bg-lingo-green/5 active:translate-y-[1px] active:shadow-none"
-        >
-          + New Course
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="rounded-xl border-2 border-lingo-border bg-white px-3 py-1.5 text-xs font-bold text-lingo-text shadow-[0_2px_0_0] shadow-lingo-border transition-all hover:border-lingo-green hover:bg-lingo-green/5 active:translate-y-[1px] active:shadow-none"
+          >
+            + New Course
+          </button>
+        )}
       </div>
 
-      {showCreateForm && (
+      {showCreateForm && isAdmin && (
         <div className="mb-4">
           <CreateCourseForm onClose={() => setShowCreateForm(false)} />
         </div>

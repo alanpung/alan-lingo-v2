@@ -62,9 +62,12 @@ export default async function LearnPage() {
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-black text-lingo-text">Learn</h1>
       </div>
-      <LearnHeader targetLanguage={targetLang ?? undefined} />
+      <LearnHeader
+        targetLanguage={targetLang ?? undefined}
+        isAdmin={isAdmin}
+      />
       <StandaloneUnits units={standaloneUnits} isAdmin={isAdmin} />
-      <MyCourses courses={ownedCourses} isAdmin={isAdmin} />
+      {isAdmin && <MyCourses courses={ownedCourses} isAdmin={isAdmin} />}
     </div>
   );
 }

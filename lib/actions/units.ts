@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { unit, course } from "@/lib/db/schema";
+import { unit, course, userUnitLibrary } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
 import { parseUnitMarkdown } from "@/lib/content/unit-parser";
@@ -129,17 +129,12 @@ export async function deleteUnit(
     return { success: false, error: "You do not own this unit" };
   }
 
-  // Edit-lock: public units can only be deleted by admins
-  if (existing.visibility === "public" && !admin) {
-    return {
-      success: false,
-      error: "This unit is public and can no longer be deleted. Only admins can make changes to public content.",
-    };
-  }
-
+  // Allow owner and admin to delete public and private units
+  await db.delete(userUnitLibrary).where(eq(userUnitLibrary.unitId, unitId));
   await db.delete(unit).where(eq(unit.id, unitId));
 
   revalidatePath("/units", "page");
+  revalidatePath("/units/browse", "page");
 
   return { success: true };
 }
@@ -151,6 +146,7 @@ export async function makeUnitPublic(
 ): Promise<{ success: true } | { success: false; error: string }> {
   const session = await requireSession();
   const userId = session.user.id;
+  const admin = isAdminEmail(session.user.email);
 
   const [existing] = await db
     .select({ id: unit.id, createdBy: unit.createdBy, visibility: unit.visibility })
@@ -161,7 +157,7 @@ export async function makeUnitPublic(
     return { success: false, error: "Unit not found" };
   }
 
-  if (existing.createdBy !== userId) {
+  if (existing.createdBy !== userId && !admin) {
     return { success: false, error: "You do not own this unit" };
   }
 
@@ -175,6 +171,7 @@ export async function makeUnitPublic(
     .where(eq(unit.id, unitId));
 
   revalidatePath("/units", "page");
+  revalidatePath("/units/browse", "page");
   return { success: true };
 }
 
@@ -182,18 +179,20 @@ export async function makeUnitPrivate(
   unitId: string
 ): Promise<{ success: true } | { success: false; error: string }> {
   const session = await requireSession();
-
-  if (!isAdminEmail(session.user.email)) {
-    return { success: false, error: "Only admins can make units private" };
-  }
+  const userId = session.user.id;
+  const admin = isAdminEmail(session.user.email);
 
   const [existing] = await db
-    .select({ id: unit.id, visibility: unit.visibility })
+    .select({ id: unit.id, createdBy: unit.createdBy, visibility: unit.visibility })
     .from(unit)
     .where(eq(unit.id, unitId));
 
   if (!existing) {
     return { success: false, error: "Unit not found" };
+  }
+
+  if (existing.createdBy !== userId && !admin) {
+    return { success: false, error: "Only the author or admin can make units private" };
   }
 
   if (existing.visibility !== "public") {
@@ -206,6 +205,7 @@ export async function makeUnitPrivate(
     .where(eq(unit.id, unitId));
 
   revalidatePath("/units", "page");
+  revalidatePath("/units/browse", "page");
   return { success: true };
 }
 
@@ -282,6 +282,11 @@ export async function createCourse(data: {
 }): Promise<{ success: true; courseId: string } | { success: false; error: string }> {
   const session = await requireSession();
   const userId = session.user.id;
+  const admin = isAdminEmail(session.user.email);
+
+  if (!admin) {
+    return { success: false, error: "Only the site owner can create courses" };
+  }
 
   if (!data.title.trim()) {
     return { success: false, error: "Title is required" };
@@ -502,6 +507,11 @@ export async function createManualUnit(data: {
 }): Promise<{ success: true; unitId: string } | { success: false; error: string }> {
   const session = await requireSession();
   const userId = session.user.id;
+  const admin = isAdminEmail(session.user.email);
+
+  if (!admin) {
+    return { success: false, error: "Only the site owner can create units" };
+  }
 
   if (!data.title?.trim()) {
     return { success: false, error: "Title is required" };
@@ -553,6 +563,7 @@ srsWords: "sample"
     targetLanguage,
     sourceLanguage,
     level,
+    visibility: null,
     createdBy: userId,
   });
 

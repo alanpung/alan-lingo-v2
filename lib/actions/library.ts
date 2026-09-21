@@ -1,10 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { unit, userUnitLibrary } from "@/lib/db/schema";
+import { unit, user, userUnitLibrary } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
 import { revalidatePath } from "next/cache";
+import { isAdminEmail } from "@/lib/ai/models";
 
 export async function addUnitToLibrary(
   unitId: string
@@ -12,7 +13,7 @@ export async function addUnitToLibrary(
   const session = await requireSession();
   const userId = session.user.id;
 
-  // Verify unit exists and is public
+  // Verify unit exists
   const [existing] = await db
     .select({
       id: unit.id,
@@ -27,12 +28,22 @@ export async function addUnitToLibrary(
     return { success: false, error: "Unit not found" };
   }
 
-  if (existing.visibility !== "public") {
+  // Check if created by an admin
+  let isCreatedByAdmin = false;
+  if (existing.createdBy) {
+    const [creator] = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, existing.createdBy));
+    isCreatedByAdmin = creator?.email ? isAdminEmail(creator.email) : false;
+  }
+
+  if (existing.visibility !== "public" && !isCreatedByAdmin) {
     return { success: false, error: "Unit is not public" };
   }
 
   if (existing.createdBy === userId) {
-    return { success: false, error: "You already own this unit" };
+    return { success: true };
   }
 
   // Insert into library (ignore if already exists)
@@ -42,6 +53,7 @@ export async function addUnitToLibrary(
     .onConflictDoNothing();
 
   revalidatePath("/units", "page");
+  revalidatePath(`/unit/${unitId}`, "page");
   return { success: true };
 }
 
@@ -61,5 +73,6 @@ export async function removeUnitFromLibrary(
     );
 
   revalidatePath("/units", "page");
+  revalidatePath(`/unit/${unitId}`, "page");
   return { success: true };
 }
