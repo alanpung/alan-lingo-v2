@@ -53,6 +53,13 @@ const EXERCISE_TYPES = [
     nameEn: "Flashcard review",
     desc: "经典的双面记忆卡片，用于间隔重复（SRS）的高效复习。",
   },
+  {
+    num: "8",
+    icon: "🌐",
+    nameZh: "句子翻译",
+    nameEn: "Translation",
+    desc: "根据题目将句子准确翻译，支持多种符合语境的表达与智能匹配。",
+  },
 ];
 
 export default async function LandingPage() {

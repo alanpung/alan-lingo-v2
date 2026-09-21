@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { userMemory } from "@/lib/db/schema";
 import { and, eq, like } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
+import { isAdminEmail } from "@/lib/ai/models";
 import { PROMPT_DEFINITIONS, PROMPTS_BY_ID } from "@/lib/prompts";
 
 export type PromptWithOverride = {
@@ -17,6 +18,7 @@ export type PromptWithOverride = {
 
 export async function getPrompts(): Promise<PromptWithOverride[]> {
   const session = await requireSession();
+  if (!isAdminEmail(session.user.email)) return [];
 
   const overrides = await db
     .select()
@@ -40,6 +42,7 @@ export async function getPrompts(): Promise<PromptWithOverride[]> {
 
 export async function savePrompt(id: string, value: string) {
   const session = await requireSession();
+  if (!isAdminEmail(session.user.email)) throw new Error("Unauthorized");
   if (!PROMPTS_BY_ID[id]) throw new Error(`Unknown prompt ID: ${id}`);
 
   const key = `prompt:${id}`;
@@ -59,6 +62,7 @@ export async function savePrompt(id: string, value: string) {
 
 export async function resetPrompt(id: string) {
   const session = await requireSession();
+  if (!isAdminEmail(session.user.email)) throw new Error("Unauthorized");
   if (!PROMPTS_BY_ID[id]) throw new Error(`Unknown prompt ID: ${id}`);
 
   await db
@@ -73,6 +77,7 @@ export async function resetPrompt(id: string) {
 
 export async function getMemory(): Promise<string> {
   const session = await requireSession();
+  if (!isAdminEmail(session.user.email)) return "";
 
   const [row] = await db
     .select()
@@ -87,6 +92,7 @@ export async function getMemory(): Promise<string> {
 
 export async function saveMemory(value: string) {
   const session = await requireSession();
+  if (!isAdminEmail(session.user.email)) throw new Error("Unauthorized");
 
   await db
     .insert(userMemory)

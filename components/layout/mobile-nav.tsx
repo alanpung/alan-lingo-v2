@@ -14,16 +14,21 @@ const navItems = [
 
 interface MobileNavProps {
   showChat?: boolean;
+  showRead?: boolean;
 }
 
-export function MobileNav({ showChat = true }: MobileNavProps) {
+export function MobileNav({ showChat = true, showRead = true }: MobileNavProps) {
   const pathname = usePathname();
   const isKeyboardOpen = useMobileKeyboardOpen();
 
   // Hide nav entirely when keyboard is open (resizes-content handles layout)
   if (isKeyboardOpen) return null;
 
-  const items = showChat ? navItems : navItems.filter((item) => item.href !== "/chat");
+  const items = navItems.filter((item) => {
+    if (item.href === "/chat" && !showChat) return false;
+    if (item.href === "/read" && !showRead) return false;
+    return true;
+  });
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex md:hidden border-t-2 border-lingo-border bg-white">

@@ -51,12 +51,12 @@ export default async function MainLayout({
         name={session.user.name}
       />
       <BackgroundRoutePrefetch />
-      <Sidebar showChat={isAdmin} />
+      <Sidebar showChat={isAdmin} showRead={isAdmin} />
       <div className="flex flex-1 flex-col md:pl-64 min-h-0">
         <TopBar stats={stats} githubStars={githubStars} />
         <main className="flex-1 overflow-y-auto p-4 pb-20 md:p-8 md:pb-8">{children}</main>
       </div>
-      <MobileNav showChat={isAdmin} />
+      <MobileNav showChat={isAdmin} showRead={isAdmin} />
     </div>
   );
 }

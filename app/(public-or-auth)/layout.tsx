@@ -9,6 +9,7 @@ import { TopBar } from "@/components/layout/top-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { PostHogIdentify } from "@/components/providers/posthog-identify";
 import { BackgroundRoutePrefetch } from "@/components/providers/background-route-prefetch";
+import { isAdminEmail } from "@/lib/ai/models";
 
 export default async function PublicOrAuthLayout({
   children,
@@ -19,6 +20,7 @@ export default async function PublicOrAuthLayout({
 
   // Authenticated: render full app layout (sidebar, topbar, mobile nav)
   if (session) {
+    const isAdmin = isAdminEmail(session.user.email);
     let stats = null;
     let githubStars: number | null = null;
     try {
@@ -44,12 +46,12 @@ export default async function PublicOrAuthLayout({
           name={session.user.name}
         />
         <BackgroundRoutePrefetch />
-        <Sidebar />
+        <Sidebar showChat={isAdmin} showRead={isAdmin} />
         <div className="md:pl-64">
           <TopBar stats={stats} githubStars={githubStars} />
           <main className="p-4 pb-20 md:p-8 md:pb-8">{children}</main>
         </div>
-        <MobileNav />
+        <MobileNav showChat={isAdmin} showRead={isAdmin} />
       </div>
     );
   }

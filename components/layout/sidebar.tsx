@@ -13,11 +13,16 @@ const navItems = [
 
 interface SidebarProps {
   showChat?: boolean;
+  showRead?: boolean;
 }
 
-export function Sidebar({ showChat = true }: SidebarProps) {
+export function Sidebar({ showChat = true, showRead = true }: SidebarProps) {
   const pathname = usePathname();
-  const items = showChat ? navItems : navItems.filter((item) => item.href !== "/chat");
+  const items = navItems.filter((item) => {
+    if (item.href === "/chat" && !showChat) return false;
+    if (item.href === "/read" && !showRead) return false;
+    return true;
+  });
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r-2 border-lingo-border bg-white">

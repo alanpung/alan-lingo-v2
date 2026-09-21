@@ -18,11 +18,13 @@ const NATIVE_LANGUAGES = [
 ];
 
 export function SettingsView({
+  isAdmin = false,
   prompts,
   initialMemory,
   targetLanguage,
   nativeLanguage,
 }: {
+  isAdmin?: boolean;
   prompts: PromptWithOverride[];
   initialMemory: string;
   targetLanguage: string | null;
@@ -60,7 +62,9 @@ export function SettingsView({
     <div className="mx-auto max-w-2xl py-6 pb-20">
       <h1 className="text-2xl font-black text-lingo-text mb-1">Settings</h1>
       <p className="text-sm text-lingo-text-light font-bold mb-6">
-        Customize your language preferences and AI settings.
+        {isAdmin
+          ? "Customize your language preferences and AI settings."
+          : "Customize your language preferences."}
       </p>
 
       {/* Language settings */}
@@ -107,13 +111,15 @@ export function SettingsView({
         </div>
       </div>
 
-      <div className="space-y-4">
-        <MemoryEditor initialValue={initialMemory} />
+      {isAdmin && (
+        <div className="space-y-4">
+          <MemoryEditor initialValue={initialMemory} />
 
-        {prompts.map((p) => (
-          <PromptEditor key={p.id} prompt={p} />
-        ))}
-      </div>
+          {prompts.map((p) => (
+            <PromptEditor key={p.id} prompt={p} />
+          ))}
+        </div>
+      )}
 
       {/* Danger Zone */}
       <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-6 mt-8 shadow-sm">
