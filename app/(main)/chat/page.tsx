@@ -1,10 +1,11 @@
+import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth-server";
 import { ChatView } from "@/components/chat/chat-view";
 import {
   getTargetLanguage,
   getPreferredModel,
 } from "@/lib/actions/preferences";
-import { getModelsForUser } from "@/lib/ai/models";
+import { getModelsForUser, isAdminEmail } from "@/lib/ai/models";
 
 
 export default async function ChatPage({
@@ -13,6 +14,9 @@ export default async function ChatPage({
   searchParams: Promise<{ prompt?: string }>;
 }) {
   const session = await requireSession();
+  if (!isAdminEmail(session.user.email)) {
+    redirect("/units");
+  }
   const [language, preferredModel, params] = await Promise.all([
     getTargetLanguage(session.user.id),
     getPreferredModel(session.user.id),

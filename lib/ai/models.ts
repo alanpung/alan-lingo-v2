@@ -27,11 +27,17 @@ export const AVAILABLE_MODELS: {
 /** Models available in the chat UI */
 export const CHAT_AVAILABLE_MODELS = AVAILABLE_MODELS;
 
-/** Comma-separated list of admin emails loaded from env. */
-const ADMIN_EMAILS: string[] = (process.env.ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+/** Author / admin emails. */
+const DEFAULT_ADMINS = ["alan.pung@gmail.com"];
+const ADMIN_EMAILS: string[] = Array.from(
+  new Set([
+    ...DEFAULT_ADMINS,
+    ...(process.env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  ]),
+);
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;

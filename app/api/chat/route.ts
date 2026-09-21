@@ -1,5 +1,5 @@
 import { streamText, convertToModelMessages, stepCountIs } from "ai";
-import { getModel, getModelsForUser, createTools } from "@/lib/ai";
+import { getModel, getModelsForUser, createTools, isAdminEmail } from "@/lib/ai";
 import { requireSession } from "@/lib/auth-server";
 import { langCodeToName, interpolateTemplate, SRS_REFERENCE } from "@/lib/prompts";
 import { getUserPromptTemplate } from "@/lib/actions/prompts";
@@ -15,6 +15,11 @@ const DEFAULT_CHAT_MODEL = DEFAULT_AI_MODEL;
 
 export async function POST(req: Request) {
   const session = await requireSession();
+  if (!isAdminEmail(session.user.email)) {
+    return new Response("AI Chat is currently restricted to the author.", {
+      status: 403,
+    });
+  }
   const { messages, language: lang, model: requestedModel } = await req.json();
 
   const language: string = lang || (await getTargetLanguage(session.user.id)) || "en";

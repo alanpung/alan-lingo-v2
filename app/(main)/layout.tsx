@@ -9,6 +9,7 @@ import { TopBar } from "@/components/layout/top-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { PostHogIdentify } from "@/components/providers/posthog-identify";
 import { BackgroundRoutePrefetch } from "@/components/providers/background-route-prefetch";
+import { isAdminEmail } from "@/lib/ai/models";
 
 export default async function MainLayout({
   children,
@@ -40,6 +41,8 @@ export default async function MainLayout({
     // User may not have stats yet
   }
 
+  const isAdmin = isAdminEmail(session.user.email);
+
   return (
     <div className="h-dvh bg-lingo-bg flex flex-col md:flex-row">
       <PostHogIdentify
@@ -48,12 +51,12 @@ export default async function MainLayout({
         name={session.user.name}
       />
       <BackgroundRoutePrefetch />
-      <Sidebar />
+      <Sidebar showChat={isAdmin} />
       <div className="flex flex-1 flex-col md:pl-64 min-h-0">
         <TopBar stats={stats} githubStars={githubStars} />
         <main className="flex-1 overflow-y-auto p-4 pb-20 md:p-8 md:pb-8">{children}</main>
       </div>
-      <MobileNav />
+      <MobileNav showChat={isAdmin} />
     </div>
   );
 }

@@ -11,8 +11,13 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  showChat?: boolean;
+}
+
+export function Sidebar({ showChat = true }: SidebarProps) {
   const pathname = usePathname();
+  const items = showChat ? navItems : navItems.filter((item) => item.href !== "/chat");
 
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r-2 border-lingo-border bg-white">
@@ -22,7 +27,7 @@ export function Sidebar() {
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");
           return (

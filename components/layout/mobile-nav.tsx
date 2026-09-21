@@ -12,16 +12,22 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
-export function MobileNav() {
+interface MobileNavProps {
+  showChat?: boolean;
+}
+
+export function MobileNav({ showChat = true }: MobileNavProps) {
   const pathname = usePathname();
   const isKeyboardOpen = useMobileKeyboardOpen();
 
   // Hide nav entirely when keyboard is open (resizes-content handles layout)
   if (isKeyboardOpen) return null;
 
+  const items = showChat ? navItems : navItems.filter((item) => item.href !== "/chat");
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex md:hidden border-t-2 border-lingo-border bg-white">
-      {navItems.map((item) => {
+      {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(item.href + "/");
         return (
           <Link
