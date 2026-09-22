@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { getSession } from "@/lib/auth-server";
 import { getUserStatsData } from "@/lib/actions/progress";
 import { getSrsStats } from "@/lib/actions/srs";
-import { getGitHubStars } from "@/lib/github";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopBar } from "@/components/layout/top-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -22,18 +21,15 @@ export default async function PublicOrAuthLayout({
   if (session) {
     const isAdmin = isAdminEmail(session.user.email);
     let stats = null;
-    let githubStars: number | null = null;
     try {
-      const [userStatsData, srsStats, stars] = await Promise.all([
+      const [userStatsData, srsStats] = await Promise.all([
         getUserStatsData(),
         getSrsStats(),
-        getGitHubStars(),
       ]);
       stats = {
         currentStreak: userStatsData.currentStreak,
         wordsLearned: srsStats.total,
       };
-      githubStars = stars;
     } catch {
       // User may not have stats yet
     }
@@ -48,7 +44,7 @@ export default async function PublicOrAuthLayout({
         <BackgroundRoutePrefetch />
         <Sidebar showChat={isAdmin} showRead={isAdmin} />
         <div className="md:pl-64">
-          <TopBar stats={stats} githubStars={githubStars} />
+          <TopBar stats={stats} />
           <main className="p-4 pb-20 md:p-8 md:pb-8">{children}</main>
         </div>
         <MobileNav showChat={isAdmin} showRead={isAdmin} />
