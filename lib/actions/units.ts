@@ -238,6 +238,9 @@ export async function makeCoursePublic(
     .where(eq(course.id, courseId));
 
   revalidatePath("/units", "page");
+  // Browse is a separate route and must also be invalidated after publishing.
+  revalidatePath("/units/browse", "page");
+  revalidatePath(`/units/${courseId}`, "page");
   return { success: true };
 }
 
@@ -269,6 +272,8 @@ export async function makeCoursePrivate(
     .where(eq(course.id, courseId));
 
   revalidatePath("/units", "page");
+  revalidatePath("/units/browse", "page");
+  revalidatePath(`/units/${courseId}`, "page");
   return { success: true };
 }
 
@@ -417,7 +422,10 @@ export async function addUnitToCourse(
     .set({ courseId, updatedAt: new Date() })
     .where(eq(unit.id, unitId));
 
+  // Keep both the owner view and student browse view current after association.
   revalidatePath("/units", "page");
+  revalidatePath("/units/browse", "page");
+  revalidatePath(`/units/${courseId}`, "page");
   return { success: true };
 }
 
@@ -470,6 +478,8 @@ export async function removeUnitFromCourse(
     .where(eq(unit.id, unitId));
 
   revalidatePath("/units", "page");
+  revalidatePath("/units/browse", "page");
+  revalidatePath(`/units/${existingCourse.id}`, "page");
   return { success: true };
 }
 
@@ -526,31 +536,6 @@ export async function createManualUnit(data: {
   const sourceLanguage = data.sourceLanguage || "en";
   const level = data.level || "A1";
   const courseId = data.courseId || null;
-
-  const initialMarkdown = `---
-unitTitle: "${title}"
-description: "Practice exercises for ${title}"
-icon: "📘"
-color: "#4CAF50"
-targetLanguage: "${targetLanguage}"
-sourceLanguage: "${sourceLanguage}"
-level: "${level}"
----
-
----
-lessonTitle: "Lesson 1: Introduction"
-description: "Basic introduction and vocabulary"
-icon: "👋"
-color: "#FF9600"
----
-
-[multiple-choice]
-text: "Select the correct option"
-choices:
-  - "Option 1" (correct)
-  - "Option 2"
-srsWords: "sample"
-`;
 
   await db.insert(unit).values({
     id: unitId,
