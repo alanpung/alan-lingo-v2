@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LearnPage() {
   let session = null;
+
   try {
     session = await auth.api.getSession({ headers: await headers() });
   } catch (err) {
