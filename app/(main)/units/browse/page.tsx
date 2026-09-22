@@ -7,8 +7,6 @@ import {
   getAvailableFilters,
   getBrowsableUnits,
 } from "@/lib/db/queries/courses";
-import { getNativeLanguage } from "@/lib/actions/profile";
-import { getTargetLanguage } from "@/lib/actions/preferences";
 import { CourseBrowser } from "../course-browser";
 import { BrowseUnits } from "../browse-units";
 
@@ -20,16 +18,12 @@ export default async function BrowsePage() {
     redirect("/sign-in?redirect=/units/browse");
   }
 
-  const nativeLanguage = userId ? await getNativeLanguage(userId) : null;
-  const targetLanguage = userId ? await getTargetLanguage(userId) : null;
-
   const [courses, filters, browsableUnits] = await Promise.all([
-    listCoursesWithLessonCounts(
-      nativeLanguage ? { sourceLanguage: nativeLanguage } : undefined,
-      userId,
-    ),
+    // Show every public course. Do not automatically filter by the student's
+    // native or target language; users can still use the optional UI filters.
+    listCoursesWithLessonCounts(undefined, userId),
     getAvailableFilters(userId),
-    userId ? getBrowsableUnits(userId) : Promise.resolve([]),
+    getBrowsableUnits(userId),
   ]);
 
   return (
@@ -44,28 +38,20 @@ export default async function BrowsePage() {
         <h1 className="text-2xl font-black text-lingo-text">Browse</h1>
       </div>
 
-      <BrowseUnits units={browsableUnits} initialTargetLanguage={targetLanguage} />
+      {/* Do not apply the student's target-language preference automatically. */}
+      <BrowseUnits units={browsableUnits} />
 
       {courses.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-lg text-lingo-text-light mb-2">
-            No courses available for your language yet.
+            No public courses are available yet.
           </p>
           <p className="text-sm text-lingo-text-light">
-            Change your native language in{" "}
-            <a href="/settings" className="font-bold text-lingo-blue underline">
-              settings
-            </a>{" "}
-            to see more courses.
+            Public courses will appear here when they are published.
           </p>
         </div>
       ) : (
-        <CourseBrowser
-          courses={courses}
-          filters={filters}
-          initialSourceLanguage={nativeLanguage}
-          initialTargetLanguage={targetLanguage}
-        />
+        <CourseBrowser courses={courses} filters={filters} />
       )}
     </div>
   );
