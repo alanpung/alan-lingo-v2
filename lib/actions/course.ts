@@ -41,6 +41,9 @@ export async function renameCourse(
     .set({ title: trimmedTitle, updatedAt: new Date() })
     .where(eq(course.id, courseId));
 
+  revalidatePath("/library", "page");
+  revalidatePath("/library/browse", "page");
+  revalidatePath(`/library/${courseId}`, "page");
   revalidatePath("/units", "page");
   revalidatePath("/units/browse", "page");
   revalidatePath(`/units/${courseId}`, "page");

@@ -9,7 +9,7 @@ export default async function ReadLayout({
 }) {
   const session = await requireSession();
   if (!isAdminEmail(session.user.email)) {
-    redirect("/units");
+    redirect("/library");
   }
 
   return <>{children}</>;

@@ -23,7 +23,7 @@ export function TopBar({ stats }: TopBarProps) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b-2 border-lingo-border bg-white px-4 md:px-6">
       <div className="md:hidden">
-        <Link href="/units" className="text-xl font-black text-rainbow tracking-tight">
+        <Link href="/library" className="text-xl font-black text-rainbow tracking-tight">
           AlanLingo
         </Link>
       </div>

@@ -92,14 +92,7 @@ export async function listCourses(
     conditions.push(eq(course.level, filters.level));
   }
 
-  // Only count visible units (public OR owned by the current user)
-  const unitJoinCondition = userId
-    ? and(
-        eq(unit.courseId, course.id),
-        or(eq(unit.visibility, "public"), eq(unit.createdBy, userId))
-      )
-    : and(eq(unit.courseId, course.id), eq(unit.visibility, "public"));
-
+  // Count units under each course
   const rows = await db
     .select({
       id: course.id,
@@ -111,7 +104,7 @@ export async function listCourses(
       unitCount: countDistinct(unit.id),
     })
     .from(course)
-    .leftJoin(unit, unitJoinCondition)
+    .leftJoin(unit, eq(unit.courseId, course.id))
     .where(and(...conditions))
     .groupBy(course.id, course.createdBy)
     .orderBy(course.title);
@@ -133,21 +126,10 @@ export async function listCoursesWithLessonCounts(
 
   const courseIds = courses.map((c) => c.id);
 
-  // Only count lessons from visible units
-  const unitVisibilityCondition = userId
-    ? and(
-        inArray(unit.courseId, courseIds),
-        or(eq(unit.visibility, "public"), eq(unit.createdBy, userId))
-      )
-    : and(
-        inArray(unit.courseId, courseIds),
-        eq(unit.visibility, "public")
-      );
-
   const units = await db
     .select({ id: unit.id, courseId: unit.courseId, markdown: unit.markdown })
     .from(unit)
-    .where(unitVisibilityCondition);
+    .where(inArray(unit.courseId, courseIds));
 
   const lessonCountByCourse = new Map<string, number>();
   for (const u of units) {
@@ -183,11 +165,30 @@ export async function getCourseWithContent(
   userId?: string
 ): Promise<Course | null> {
   const courseConditions = [eq(course.id, courseId)];
+  let isEnrolled = false;
   if (userId) {
+    try {
+      const enrollment = await db
+        .select({ id: userCourseEnrollment.id })
+        .from(userCourseEnrollment)
+        .where(
+          and(
+            eq(userCourseEnrollment.userId, userId),
+            eq(userCourseEnrollment.courseId, courseId)
+          )
+        )
+        .limit(1);
+      isEnrolled = enrollment.length > 0;
+    } catch (err) {
+      console.warn("getCourseWithContent enrollment check failed:", err);
+    }
+  }
+
+  if (userId && !isEnrolled) {
     courseConditions.push(
       or(eq(course.visibility, "public"), eq(course.createdBy, userId))!
     );
-  } else {
+  } else if (!userId) {
     courseConditions.push(eq(course.visibility, "public"));
   }
 
@@ -198,19 +199,10 @@ export async function getCourseWithContent(
 
   if (!courseRow) return null;
 
-  const unitConditions = [eq(unit.courseId, courseId)];
-  if (userId) {
-    unitConditions.push(
-      or(eq(unit.visibility, "public"), eq(unit.createdBy, userId))!
-    );
-  } else {
-    unitConditions.push(eq(unit.visibility, "public"));
-  }
-
   const units = await db
     .select()
     .from(unit)
-    .where(and(...unitConditions));
+    .where(eq(unit.courseId, courseId));
 
   const mappedUnits = units.map((u) => {
     const safeResult = getUnitLessonsSafe(u.markdown ?? "");

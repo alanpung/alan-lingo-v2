@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 
 export const AUTHENTICATED_PREFETCH_ROUTES = [
   "/chat",
-  "/units",
-  "/units/browse",
+  "/library",
+  "/library/browse",
   "/read",
   "/words",
   "/settings",

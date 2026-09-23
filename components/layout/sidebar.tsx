@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/chat", label: "Chat", icon: "💬" },
-  { href: "/units", label: "Library", icon: "📚" },
+  { href: "/library", label: "Library", icon: "📚" },
   { href: "/read", label: "Read", icon: "📖" },
   { href: "/words", label: "Words", icon: "🔤" },
   { href: "/settings", label: "Settings", icon: "⚙️" },
@@ -27,7 +27,7 @@ export function Sidebar({ showChat = true, showRead = true }: SidebarProps) {
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r-2 border-lingo-border bg-white">
       <div className="flex h-16 items-center px-6">
-        <Link href="/units" className="text-2xl font-black text-rainbow tracking-tight">
+        <Link href="/library" className="text-2xl font-black text-rainbow tracking-tight">
           AlanLingo
         </Link>
       </div>

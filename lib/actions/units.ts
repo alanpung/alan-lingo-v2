@@ -15,9 +15,14 @@ function slugify(text: string): string {
 }
 
 function revalidateUnitPages(courseId?: string | null) {
+  revalidatePath("/library", "page");
+  revalidatePath("/library/browse", "page");
   revalidatePath("/units", "page");
   revalidatePath("/units/browse", "page");
-  if (courseId) revalidatePath(`/units/${courseId}`, "page");
+  if (courseId) {
+    revalidatePath(`/library/${courseId}`, "page");
+    revalidatePath(`/units/${courseId}`, "page");
+  }
 }
 
 export async function updateUnitMarkdown(unitId: string, markdown: string): Promise<

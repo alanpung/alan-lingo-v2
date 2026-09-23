@@ -15,7 +15,7 @@ export default async function ChatPage({
 }) {
   const session = await requireSession();
   if (!isAdminEmail(session.user.email)) {
-    redirect("/units");
+    redirect("/library");
   }
   const [language, preferredModel, params] = await Promise.all([
     getTargetLanguage(session.user.id),

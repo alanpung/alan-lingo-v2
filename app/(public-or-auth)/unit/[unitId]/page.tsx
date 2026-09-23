@@ -77,7 +77,7 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
 
   // If unit belongs to a course, redirect there
   if (unit.courseId) {
-    redirect(`/units/${unit.courseId}?unit=${unitId}`);
+    redirect(`/library/${unit.courseId}?unit=${unitId}`);
   }
 
   // Visibility check for anonymous users
@@ -122,14 +122,14 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
           </p>
           <div className="flex justify-center gap-3">
             <Link
-              href="/units"
+              href="/library"
               className="rounded-xl border-2 border-lingo-border bg-white px-4 py-2 text-sm font-bold text-lingo-text hover:bg-lingo-gray/30 transition-colors"
             >
-              Back to Units
+              Back to Library
             </Link>
             {session?.user?.id && (
               <Link
-                href={`/units/edit/${unitId}`}
+                href={`/library/edit/${unitId}`}
                 className="rounded-xl border-2 border-lingo-blue bg-lingo-blue px-4 py-2 text-sm font-bold text-white hover:bg-lingo-blue/90 transition-colors"
               >
                 Edit Markdown
@@ -169,10 +169,10 @@ export default async function StandaloneUnitPage({ params }: PageProps) {
       <div className="mx-auto max-w-lg">
         <div className="mb-4 flex items-center justify-between">
           <Link
-            href="/units"
+            href="/library"
             className="text-xs font-bold text-lingo-text-light hover:text-lingo-text transition-colors flex items-center gap-1"
           >
-            &larr; Back to My Units
+            &larr; Back to Library
           </Link>
         </div>
 

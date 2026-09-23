@@ -91,7 +91,7 @@ export function UnitLibraryBanner({
         </div>
         <div className="flex items-center gap-3">
           <Link
-            href="/units"
+            href="/library"
             className="text-xs font-bold text-lingo-blue hover:underline"
           >
             View in Library &rarr;

@@ -73,9 +73,12 @@ export async function addUnitToLibrary(
     .values({ userId, unitId })
     .onConflictDoNothing();
 
+  revalidatePath("/library", "page");
+  revalidatePath("/library/browse", "page");
   revalidatePath("/units", "page");
   revalidatePath("/units/browse", "page");
   if (existing.courseId) {
+    revalidatePath(`/library/${existing.courseId}`, "page");
     revalidatePath(`/units/${existing.courseId}`, "page");
   }
   revalidatePath(`/unit/${unitId}`, "page");
@@ -97,6 +100,7 @@ export async function removeUnitFromLibrary(
       )
     );
 
+  revalidatePath("/library", "page");
   revalidatePath("/units", "page");
   revalidatePath(`/unit/${unitId}`, "page");
   return { success: true };
@@ -159,6 +163,9 @@ export async function addCourseToLibrary(
       .onConflictDoNothing();
   }
 
+  revalidatePath("/library", "page");
+  revalidatePath("/library/browse", "page");
+  revalidatePath(`/library/${courseId}`, "page");
   revalidatePath("/units", "page");
   revalidatePath("/units/browse", "page");
   revalidatePath(`/units/${courseId}`, "page");
@@ -197,6 +204,9 @@ export async function removeCourseFromLibrary(
       );
   }
 
+  revalidatePath("/library", "page");
+  revalidatePath("/library/browse", "page");
+  revalidatePath(`/library/${courseId}`, "page");
   revalidatePath("/units", "page");
   revalidatePath("/units/browse", "page");
   revalidatePath(`/units/${courseId}`, "page");

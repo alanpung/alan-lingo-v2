@@ -7,6 +7,20 @@ const nextConfig: NextConfig = {
       static: 180,
     },
   },
+  async redirects() {
+    return [
+      {
+        source: "/units",
+        destination: "/library",
+        permanent: true,
+      },
+      {
+        source: "/units/:path*",
+        destination: "/library/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

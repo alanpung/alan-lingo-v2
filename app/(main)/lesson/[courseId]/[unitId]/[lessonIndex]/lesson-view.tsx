@@ -46,7 +46,7 @@ export function LessonView({
   } | null>(null);
 
   const backUrl = courseId
-    ? `/units/${courseId}?unit=${unitId}`
+    ? `/library/${courseId}?unit=${unitId}`
     : `/unit/${unitId}`;
 
   const {

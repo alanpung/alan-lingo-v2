@@ -206,6 +206,7 @@ export function createTools(userId: string, language?: string) {
           0,
         );
 
+        revalidatePath("/library", "page");
         revalidatePath("/units", "page");
 
         return {

@@ -32,7 +32,7 @@ export function ChatUnitCard({
   const router = useRouter();
   const color = getUnitColor(0);
   const destination = courseId
-    ? `/units/${courseId}`
+    ? `/library/${courseId}`
     : url || (unitId ? `/unit/${unitId}` : "/chat");
 
   return (
