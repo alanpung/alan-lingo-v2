@@ -11,9 +11,9 @@ import type {
 } from "@/lib/content/types";
 import { isAdminEmail } from "@/lib/ai/models";
 import { getTargetLanguage } from "@/lib/actions/preferences";
-import { StandaloneUnits } from "./standalone-units";
-import { MyCourses } from "./my-courses";
-import { LearnHeader } from "./learn-header";
+import { StandaloneUnits } from "@/components/library/standalone-units";
+import { MyCourses } from "@/components/library/my-courses";
+import { LearnHeader } from "@/components/library/learn-header";
 
 export const dynamic = "force-dynamic";
 

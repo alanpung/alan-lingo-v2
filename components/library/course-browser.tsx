@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { CourseListItem } from "@/lib/content/types";
 import { getLanguageName } from "@/lib/languages";
-import { CourseCard } from "./course-card";
+import { CourseCard } from "@/components/library/course-card";
 
 interface CourseBrowserProps {
   courses: CourseListItem[];

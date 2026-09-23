@@ -7,8 +7,8 @@ import {
   getAvailableFilters,
   getBrowsableUnits,
 } from "@/lib/db/queries/courses";
-import { CourseBrowser } from "../course-browser";
-import { BrowseUnits } from "../browse-units";
+import { CourseBrowser } from "@/components/library/course-browser";
+import { BrowseUnits } from "@/components/library/browse-units";
 
 export default async function BrowsePage() {
   const session = await auth.api.getSession({ headers: await headers() });

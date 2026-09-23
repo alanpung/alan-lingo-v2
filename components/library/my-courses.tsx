@@ -8,8 +8,8 @@ import type { AvailableUnitForCourse, CourseManagementInfo } from "@/lib/content
 import { getLanguageName } from "@/lib/languages";
 import { makeCoursePublic, makeCoursePrivate, deleteCourse, updateCourseTitle } from "@/lib/actions/units";
 import { removeCourseFromLibrary } from "@/lib/actions/library";
-import { CreateCourseForm } from "./create-course-form";
-import { CourseManager } from "./course-manager";
+import { CreateCourseForm } from "@/components/library/create-course-form";
+import { CourseManager } from "@/components/library/course-manager";
 import { CopyLinkButton } from "@/components/ui/copy-link-button";
 
 interface MyCoursesProps {
