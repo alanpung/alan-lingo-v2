@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef, useTransition } from "react";
+import { useEffect, useState, useRef, useTransition, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-export function NavigationProgressBar() {
+function NavigationProgressBarInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isNavigating, setIsNavigating] = useState(false);
@@ -124,5 +124,13 @@ export function NavigationProgressBar() {
         <span className="text-[11px] font-bold text-lingo-text">Loading...</span>
       </div>
     </div>
+  );
+}
+
+export function NavigationProgressBar() {
+  return (
+    <Suspense fallback={null}>
+      <NavigationProgressBarInner />
+    </Suspense>
   );
 }
