@@ -1,5 +1,6 @@
-import { getPrompts, getMemory } from "@/lib/actions/prompts";
+import { getPrompts, getMemory, type PromptWithOverride } from "@/lib/actions/prompts";
 import { getVoiceSettings } from "@/lib/actions/tts-settings";
+import type { VoiceSettingsData } from "@/lib/tts-config";
 import { requireSession } from "@/lib/auth-server";
 import { isAdminEmail } from "@/lib/ai/models";
 import { SettingsView } from "./settings-view";
@@ -10,9 +11,9 @@ export default async function SettingsPage() {
   const session = await requireSession();
   const isAdmin = isAdminEmail(session.user.email);
 
-  let prompts = [];
-  let memory = "";
-  let voiceSettings = null;
+  let prompts: PromptWithOverride[] = [];
+  let memory: string = "";
+  let voiceSettings: VoiceSettingsData | null = null;
 
   if (isAdmin) {
     const results = await Promise.allSettled([
