@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateSpeech, getCachedAudio } from "@/lib/tts";
 import { getAudio } from "@/lib/r2";
+import { getSession } from "@/lib/auth-server";
 
 export async function GET(request: NextRequest) {
   const key = request.nextUrl.searchParams.get("key");
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { text, language } = body;
+    const { text, language, voice, instructions } = body;
 
     if (!text || typeof text !== "string") {
       return NextResponse.json({ error: "text is required" }, { status: 400 });
@@ -54,7 +55,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { url } = await generateSpeech(text, language);
+    let userId: string | undefined = undefined;
+    try {
+      const session = await getSession();
+      if (session?.user?.id) {
+        userId = session.user.id;
+      }
+    } catch {
+      // Ignore session errors
+    }
+
+    const { url } = await generateSpeech(text, language, {
+      voiceName: voice,
+      instructions,
+      userId,
+    });
     return NextResponse.json({ url });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "TTS generation failed";

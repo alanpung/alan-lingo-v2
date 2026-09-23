@@ -6,6 +6,9 @@ import {
   langCodeToName,
 } from "@/lib/prompts";
 import { detectTextLanguage } from "@/lib/language-detector";
+import { db } from "@/lib/db";
+import { userMemory } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 // Lazy initialization of Gemini client
 let geminiClient: GoogleGenAI | null = null;
@@ -60,30 +63,72 @@ export function getCachedAudio(key: string): { buffer: Buffer; mimeType: string 
   return memoryAudioCache.get(key) ?? null;
 }
 
+export interface GenerateSpeechOptions {
+  voiceName?: string;
+  instructions?: string;
+  userId?: string;
+  skipCache?: boolean;
+}
+
 export async function generateSpeech(
   text: string,
   language: string,
+  options?: GenerateSpeechOptions
 ): Promise<{ url: string; buffer: Buffer }> {
   const normalized = text.trim();
   const resolvedLang = detectTextLanguage(normalized, { targetLanguage: language });
-  const hash = createHash("md5").update(`${resolvedLang}:${normalized.toLowerCase()}`).digest("hex");
-  const cacheKey = `${resolvedLang}/${hash}`;
+  const target_language = langCodeToName[resolvedLang] || resolvedLang;
 
-  const existing = memoryAudioCache.get(cacheKey);
-  if (existing) {
-    return {
-      url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
-      buffer: existing.buffer,
-    };
+  let selectedVoice = options?.voiceName;
+  let customInstructions = options?.instructions;
+
+  // If not explicitly provided, try checking user preferences in database if userId provided or global config
+  if (!selectedVoice || !customInstructions) {
+    try {
+      if (options?.userId) {
+        const records = await db
+          .select()
+          .from(userMemory)
+          .where(eq(userMemory.userId, options.userId));
+        const map = new Map(records.map((r) => [r.key, r.value]));
+        if (!selectedVoice && map.has("tts:voice")) {
+          selectedVoice = map.get("tts:voice");
+        }
+        if (!customInstructions && map.has("prompt:tts-instructions")) {
+          customInstructions = map.get("prompt:tts-instructions");
+        }
+      }
+    } catch {
+      // Fallback silently if DB lookup fails
+    }
   }
 
-  const target_language = langCodeToName[resolvedLang] || resolvedLang;
-  let customInstructions = "";
-  try {
-    const ttsTemplate = getDefaultTemplate("tts-instructions");
-    customInstructions = interpolateTemplate(ttsTemplate, { target_language });
-  } catch {
-    customInstructions = `Speak in ${target_language} with clear, native pronunciation. Calm, measured pace for learners.`;
+  const effectiveVoice = selectedVoice || "Kore";
+
+  if (!customInstructions) {
+    try {
+      const ttsTemplate = getDefaultTemplate("tts-instructions");
+      customInstructions = interpolateTemplate(ttsTemplate, { target_language });
+    } catch {
+      customInstructions = `Speak in ${target_language} with clear, native pronunciation. Calm, measured pace for learners.`;
+    }
+  } else {
+    customInstructions = interpolateTemplate(customInstructions, { target_language });
+  }
+
+  const hash = createHash("md5")
+    .update(`${resolvedLang}:${effectiveVoice}:${customInstructions}:${normalized.toLowerCase()}`)
+    .digest("hex");
+  const cacheKey = `${resolvedLang}/${effectiveVoice}/${hash}`;
+
+  if (!options?.skipCache) {
+    const existing = memoryAudioCache.get(cacheKey);
+    if (existing) {
+      return {
+        url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
+        buffer: existing.buffer,
+      };
+    }
   }
 
   const prompt = `${customInstructions}\nRead the following text aloud with clear, natural pronunciation. Speak only the exact words provided, saying nothing else:\n\n${normalized}`;
@@ -96,7 +141,7 @@ export async function generateSpeech(
       responseModalities: [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: "Kore" },
+          prebuiltVoiceConfig: { voiceName: effectiveVoice },
         },
       },
     },

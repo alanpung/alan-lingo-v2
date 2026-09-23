@@ -47,16 +47,25 @@
 html {
   overflow-x: hidden;
   overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   overflow-x: hidden;
-}
-
-body {
   background: var(--lingo-bg);
   color: var(--lingo-text);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch responsiveness for mobile links, buttons, and cards */
+a, button, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+a:active, button:active, [role="button"]:active {
+  -webkit-tap-highlight-color: transparent;
 }
 
 @keyframes pulse-glow {

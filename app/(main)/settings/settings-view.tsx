@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { PromptEditor } from "./prompt-editor";
 import { MemoryEditor } from "./memory-editor";
 import { ChangePasswordForm } from "./change-password-form";
+import { VoiceSelector } from "./voice-selector";
 import type { PromptWithOverride } from "@/lib/actions/prompts";
+import type { VoiceSettingsData } from "@/lib/actions/tts-settings";
 
 export function SettingsView({
   isAdmin = false,
@@ -13,12 +15,14 @@ export function SettingsView({
   userName,
   prompts,
   initialMemory,
+  voiceSettings,
 }: {
   isAdmin?: boolean;
   userEmail?: string;
   userName?: string;
   prompts: PromptWithOverride[];
   initialMemory: string;
+  voiceSettings?: VoiceSettingsData | null;
 }) {
   const router = useRouter();
 
@@ -71,11 +75,16 @@ export function SettingsView({
           </div>
           {isAdmin && (
             <span className="rounded-full bg-lingo-yellow/20 px-2.5 py-1 text-xs font-bold text-amber-700">
-              Admin
+              Admin / Author
             </span>
           )}
         </div>
       </div>
+
+      {/* Admin Voice & Audio Configuration */}
+      {isAdmin && voiceSettings && (
+        <VoiceSelector initialSettings={voiceSettings} />
+      )}
 
       {/* Change Password */}
       <ChangePasswordForm />
@@ -157,4 +166,3 @@ export function SettingsView({
     </div>
   );
 }
-

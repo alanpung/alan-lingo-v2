@@ -8,6 +8,7 @@ import { TopBar } from "@/components/layout/top-bar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { PostHogIdentify } from "@/components/providers/posthog-identify";
 import { BackgroundRoutePrefetch } from "@/components/providers/background-route-prefetch";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { isAdminEmail } from "@/lib/ai/models";
 
 export default async function PublicOrAuthLayout({
@@ -45,7 +46,9 @@ export default async function PublicOrAuthLayout({
         <Sidebar showChat={isAdmin} showRead={isAdmin} />
         <div className="md:pl-64">
           <TopBar stats={stats} />
-          <main className="p-4 pb-20 md:p-8 md:pb-8">{children}</main>
+          <PullToRefresh className="p-4 pb-20 md:p-8 md:pb-8">
+            {children}
+          </PullToRefresh>
         </div>
         <MobileNav showChat={isAdmin} showRead={isAdmin} />
       </div>
@@ -78,9 +81,9 @@ export default async function PublicOrAuthLayout({
           </Link>
         </div>
       </header>
-      <main className="p-4 pb-20 md:p-8 md:pb-8">
+      <PullToRefresh className="p-4 pb-20 md:p-8 md:pb-8">
         <div className="mx-auto max-w-lg">{children}</div>
-      </main>
+      </PullToRefresh>
     </div>
   );
 }

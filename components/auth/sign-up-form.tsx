@@ -12,6 +12,7 @@ import Link from "next/link";
 interface SignUpFormProps {
   redirectUrl?: string;
   initialError?: string;
+  hasGoogleAuth?: boolean;
 }
 
 const getErrorMessage = (errCode?: string) => {
@@ -22,7 +23,7 @@ const getErrorMessage = (errCode?: string) => {
   return errCode;
 };
 
-export function SignUpForm({ redirectUrl, initialError }: SignUpFormProps) {
+export function SignUpForm({ redirectUrl, initialError, hasGoogleAuth = true }: SignUpFormProps) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -84,6 +85,11 @@ export function SignUpForm({ redirectUrl, initialError }: SignUpFormProps) {
 
   async function handleGoogleSignIn() {
     setError("");
+    if (!hasGoogleAuth) {
+      setError("Google Sign-Up is not configured on this server. Please create an account with email and password.");
+      return;
+    }
+
     setGoogleLoading(true);
     try {
       const res = await signIn.social({
@@ -91,12 +97,20 @@ export function SignUpForm({ redirectUrl, initialError }: SignUpFormProps) {
         callbackURL: destination,
       });
       if (res?.error) {
-        setError(res.error.message || "Google sign-in failed. Please check Google OAuth configuration.");
+        const errorMsg =
+          res.error.message?.includes("Provider not found") || res.error.message?.includes("provider")
+            ? "Google Sign-Up is not configured on this server. Please create an account with email and password."
+            : res.error.message || "Google sign-in failed. Please check Google OAuth configuration.";
+        setError(errorMsg);
         setGoogleLoading(false);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Google sign-in failed";
-      setError(msg);
+      setError(
+        msg.includes("Provider not found") || msg.includes("provider")
+          ? "Google Sign-Up is not configured on this server. Please create an account with email and password."
+          : msg
+      );
       setGoogleLoading(false);
     }
   }
