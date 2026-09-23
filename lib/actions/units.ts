@@ -274,6 +274,10 @@ export async function createManualUnit(data: {
       icon = "🌐";
       exerciseBlock = `[translation]\ntext: "Translate to target language:"\nsentence: "Sentence to translate"\nanswer: "Translation here"\nsrsWords: "sample"`;
       break;
+    case "mix":
+      icon = "🔀";
+      exerciseBlock = `[multiple-choice]\ntext: "Select the correct option"\nchoices:\n  - "Option 1" (correct)\n  - "Option 2"\n  - "Option 3"\nsrsWords: "sample"\n\n[fill-in-the-blank]\nsentence: "Complete the ___ here."\nblank: "word"\nsrsWords: "word"`;
+      break;
     case "multiple-choice":
     default:
       icon = "🎯";

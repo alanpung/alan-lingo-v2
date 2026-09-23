@@ -7,7 +7,8 @@ export type QuestionType =
   | "speaking"
   | "flashcard-review"
   | "translation"
-  | "free-text";
+  | "free-text"
+  | "mix";
 
 export interface QuestionTypeInfo {
   id: string;
@@ -101,6 +102,24 @@ export const QUESTION_TYPES: Record<string, QuestionTypeInfo> = {
     badgeLabel: "Free text",
     color: "#8B5CF6",
   },
+  "mix": {
+    id: "mix",
+    num: "✨",
+    icon: "🔀",
+    nameZh: "综合练习",
+    nameEn: "Mixed",
+    badgeLabel: "Mixed",
+    color: "#8B5CF6",
+  },
+  "mixed": {
+    id: "mixed",
+    num: "✨",
+    icon: "🔀",
+    nameZh: "综合练习",
+    nameEn: "Mixed",
+    badgeLabel: "Mixed",
+    color: "#8B5CF6",
+  },
 };
 
 export const QUESTION_TYPE_LIST = [
@@ -112,6 +131,7 @@ export const QUESTION_TYPE_LIST = [
   QUESTION_TYPES["speaking"],
   QUESTION_TYPES["flashcard-review"],
   QUESTION_TYPES["translation"],
+  QUESTION_TYPES["mix"],
 ];
 
 export function normalizeQuestionType(
@@ -121,6 +141,19 @@ export function normalizeQuestionType(
   const str = String(input).trim().toLowerCase().replace(/_/g, "-");
 
   if (QUESTION_TYPES[str]) return QUESTION_TYPES[str];
+
+  // Mix / Mixed lookup
+  if (
+    str === "mix" ||
+    str === "mixed" ||
+    str === "combo" ||
+    str === "hybrid" ||
+    str.includes("综合") ||
+    str.includes("混选") ||
+    str.includes("多种")
+  ) {
+    return QUESTION_TYPES["mix"];
+  }
 
   // Number lookup matching front page 1-8
   if (str === "1") return QUESTION_TYPES["multiple-choice"];
@@ -133,14 +166,14 @@ export function normalizeQuestionType(
   if (str === "8") return QUESTION_TYPES["translation"];
   if (str === "9") return QUESTION_TYPES["free-text"];
 
-  // Keyword matching
-  if (str.includes("multiple") || str.includes("choice") || str.includes("选择")) {
+  // Exact or keyword matching
+  if (str.includes("multiple") || str.includes("choice") || str.includes("多选") || str.includes("选择")) {
     return QUESTION_TYPES["multiple-choice"];
   }
   if (str.includes("blank") || str.includes("fill") || str.includes("填空")) {
     return QUESTION_TYPES["fill-in-the-blank"];
   }
-  if (str.includes("match") || str.includes("pair") || str.includes("配对") || str.includes("连线")) {
+  if (str.includes("matching") || str.includes("pairs") || str.includes("配对") || str.includes("连线")) {
     return QUESTION_TYPES["matching-pairs"];
   }
   if (str.includes("listen") || str.includes("audio") || str.includes("tts") || str.includes("听力")) {
@@ -152,13 +185,13 @@ export function normalizeQuestionType(
   if (str.includes("speak") || str.includes("oral") || str.includes("stt") || str.includes("口语") || str.includes("朗读")) {
     return QUESTION_TYPES["speaking"];
   }
-  if (str.includes("flashcard") || str.includes("srs") || str.includes("card") || str.includes("闪卡")) {
+  if (str.includes("flashcard") || str.includes("srs") || str.includes("闪卡")) {
     return QUESTION_TYPES["flashcard-review"];
   }
   if (str.includes("translat") || str.includes("翻译")) {
     return QUESTION_TYPES["translation"];
   }
-  if (str.includes("free-text") || str.includes("free") || str.includes("自由表达")) {
+  if (str.includes("free-text") || str.includes("自由表达")) {
     return QUESTION_TYPES["free-text"];
   }
 
@@ -170,7 +203,7 @@ export function detectQuestionTypeFromMarkdown(
 ): QuestionTypeInfo | null {
   if (!markdown) return null;
 
-  // 1. Check frontmatter for questionType or exerciseType
+  // 1. Check frontmatter for explicit questionType or exerciseType
   const fmMatch = markdown.match(
     /^(?:questionType|exerciseType):\s*["']?([^"'\n\r]+)["']?/im
   );
@@ -179,12 +212,23 @@ export function detectQuestionTypeFromMarkdown(
     if (norm) return norm;
   }
 
-  // 2. Check exercise tag blocks like [multiple-choice], [translation], etc.
+  // 2. Check all exercise tag blocks like [multiple-choice], [translation], etc.
   const tagRegex = /\[([a-z0-9_-]+)\]/gi;
+  const distinctTypes = new Map<string, QuestionTypeInfo>();
   let match;
   while ((match = tagRegex.exec(markdown)) !== null) {
     const norm = normalizeQuestionType(match[1]);
-    if (norm) return norm;
+    if (norm) {
+      distinctTypes.set(norm.id, norm);
+    }
+  }
+
+  if (distinctTypes.size > 1) {
+    return QUESTION_TYPES["mix"];
+  }
+
+  if (distinctTypes.size === 1) {
+    return distinctTypes.values().next().value ?? null;
   }
 
   return null;
@@ -195,6 +239,7 @@ export function getUnitQuestionType(unit: {
   lessons?: { exercises?: { type: string }[] }[];
   markdown?: string | null;
 }): QuestionTypeInfo | null {
+  // 1. If explicit questionType was provided
   if (unit.questionType) {
     if (typeof unit.questionType === "object" && "id" in unit.questionType) {
       return unit.questionType as QuestionTypeInfo;
@@ -203,18 +248,53 @@ export function getUnitQuestionType(unit: {
     if (norm) return norm;
   }
 
+  // 2. Check frontmatter in markdown first if available
+  if (unit.markdown) {
+    const fmMatch = unit.markdown.match(
+      /^(?:questionType|exerciseType):\s*["']?([^"'\n\r]+)["']?/im
+    );
+    if (fmMatch) {
+      const norm = normalizeQuestionType(fmMatch[1]);
+      if (norm) return norm;
+    }
+  }
+
+  // 3. Collect distinct exercise types from parsed lessons
+  const distinctTypes = new Map<string, QuestionTypeInfo>();
+
   if (unit.lessons && unit.lessons.length > 0) {
     for (const l of unit.lessons) {
       for (const ex of l.exercises || []) {
-        const norm = normalizeQuestionType(ex.type);
-        if (norm) return norm;
+        if (ex.type) {
+          const norm = normalizeQuestionType(ex.type);
+          if (norm) {
+            distinctTypes.set(norm.id, norm);
+          }
+        }
       }
     }
   }
 
-  if (unit.markdown) {
-    return detectQuestionTypeFromMarkdown(unit.markdown);
+  // 4. If no lessons found or empty, scan markdown tags
+  if (distinctTypes.size === 0 && unit.markdown) {
+    const tagRegex = /\[([a-z0-9_-]+)\]/gi;
+    let match;
+    while ((match = tagRegex.exec(unit.markdown)) !== null) {
+      const norm = normalizeQuestionType(match[1]);
+      if (norm) {
+        distinctTypes.set(norm.id, norm);
+      }
+    }
+  }
+
+  if (distinctTypes.size > 1) {
+    return QUESTION_TYPES["mix"];
+  }
+
+  if (distinctTypes.size === 1) {
+    return distinctTypes.values().next().value ?? null;
   }
 
   return null;
 }
+

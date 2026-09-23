@@ -26,6 +26,7 @@ const QUESTION_TYPE_OPTIONS: { id: QuestionType; label: string; icon: string }[]
   { id: "speaking", label: "Speaking", icon: "🎙️" },
   { id: "flashcard-review", label: "Flashcards", icon: "🎴" },
   { id: "translation", label: "Translation", icon: "🌐" },
+  { id: "mix", label: "Mixed (Multiple)", icon: "🔀" },
 ];
 
 export function CreateUnitForm({
