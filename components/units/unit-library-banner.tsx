@@ -67,7 +67,7 @@ export function UnitLibraryBanner({
     if (isInLibrary) {
       return (
         <span className="inline-flex items-center gap-1 rounded-xl border border-lingo-green/40 bg-lingo-green/10 px-2.5 py-1 text-xs font-bold text-lingo-green">
-          <span>✓</span> In Library
+          <span>✓</span> In My Library
         </span>
       );
     }
@@ -77,7 +77,7 @@ export function UnitLibraryBanner({
         disabled={isPending}
         className="rounded-xl border-2 border-lingo-blue bg-lingo-blue px-2.5 py-1 text-xs font-bold text-white transition-all hover:bg-lingo-blue/90 active:translate-y-[1px] disabled:opacity-50"
       >
-        {isPending ? "Adding..." : "+ Add to Library"}
+        {isPending ? "Adding..." : "+ Add to My Library"}
       </button>
     );
   }
@@ -87,21 +87,21 @@ export function UnitLibraryBanner({
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-xl border-2 border-lingo-green/30 bg-lingo-green/5 px-4 py-2.5">
         <div className="flex items-center gap-2 text-xs font-bold text-lingo-green">
           <span>✓</span>
-          <span>In your library</span>
+          <span>In My Library</span>
         </div>
         <div className="flex items-center gap-3">
           <Link
             href="/units"
             className="text-xs font-bold text-lingo-blue hover:underline"
           >
-            View in My Units &rarr;
+            View in Library &rarr;
           </Link>
           <button
             onClick={handleRemove}
             disabled={isPending}
             className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline disabled:opacity-50"
           >
-            {isPending ? "Removing..." : "Remove from Library"}
+            {isPending ? "Removing..." : "Remove from My Library"}
           </button>
         </div>
       </div>
@@ -111,10 +111,10 @@ export function UnitLibraryBanner({
   return (
     <div className="mb-6 rounded-2xl border-2 border-lingo-blue/30 bg-lingo-blue/5 p-4 text-center">
       <h2 className="text-base font-black text-lingo-text mb-1">
-        Add this unit to your library
+        Add this unit to your Library
       </h2>
       <p className="text-xs text-lingo-text-light mb-3 max-w-sm mx-auto">
-        Save this unit to your Units page so you can practice anytime and track your learning progress.
+        Save this unit to your Library so you can practice anytime and track your learning progress.
       </p>
       {error && (
         <p className="text-xs text-red-500 font-bold mb-2">{error}</p>
@@ -127,10 +127,10 @@ export function UnitLibraryBanner({
         {isPending ? (
           <>
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            Adding to your units...
+            Adding to My Library...
           </>
         ) : (
-          "+ Add to Library"
+          "+ Add to My Library"
         )}
       </button>
     </div>

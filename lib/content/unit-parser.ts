@@ -94,6 +94,9 @@ export function parseUnitMarkdown(raw: string): ParsedUnit {
     sourceLanguage: fm.sourceLanguage ?? null,
     level: fm.level ?? null,
     courseId: fm.courseId ?? null,
+    questionType: (fm.questionType ?? fm.exerciseType)
+      ? String(fm.questionType ?? fm.exerciseType)
+      : null,
     lessons,
   };
 }

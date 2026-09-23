@@ -207,15 +207,21 @@ function OwnedCourseCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-bold text-lingo-text truncate">{course.title}</p>
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                  isPublic
-                    ? "bg-lingo-green/15 text-lingo-green"
-                    : "bg-lingo-gray text-lingo-text-light"
-                }`}
-              >
-                {isPublic ? "Public" : "Private"}
-              </span>
+              {course.isOwner ? (
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                    isPublic
+                      ? "bg-lingo-green/15 text-lingo-green"
+                      : "bg-lingo-gray text-lingo-text-light"
+                  }`}
+                >
+                  {isPublic ? "Public" : "Private"}
+                </span>
+              ) : course.isInLibrary ? (
+                <span className="shrink-0 rounded-full bg-lingo-blue/15 text-lingo-blue px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                  📚 In My Library
+                </span>
+              ) : null}
             </div>
             {isEditingTitle && (
               <form onSubmit={handleSaveTitle} onClick={(e) => e.stopPropagation()} className="my-2 flex items-center gap-2">
@@ -445,7 +451,7 @@ function OwnedCourseCard({
             ) : (
               <>
                 <span>✕</span>
-                Remove from Library
+                Remove from My Library
               </>
             )}
           </button>

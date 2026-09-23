@@ -29,6 +29,7 @@ import type {
   AvailableUnitForCourse,
 } from "@/lib/content/types";
 import { getUnitLessonsSafe } from "@/lib/content/loader";
+import { getUnitQuestionType } from "@/lib/content/question-types";
 
 interface CourseFilters {
   sourceLanguage?: string;
@@ -191,15 +192,17 @@ export async function getCourseWithContent(
     createdBy: courseRow.createdBy,
     units: units.map((u) => {
       const safeResult = getUnitLessonsSafe(u.markdown ?? "");
+      const lessons = safeResult?.lessons ?? [];
       return {
         id: u.id,
         title: u.title ?? "Untitled",
         description: u.description ?? "",
         icon: u.icon ?? "📘",
         color: u.color ?? "#58CC02",
-        lessons: safeResult?.lessons ?? [],
+        lessons,
         parseError: safeResult?.parseError ?? false,
         createdBy: u.createdBy ?? null,
+        questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
       };
     }),
   };
@@ -318,6 +321,7 @@ export async function getStandaloneUnits(
       isOwner: u.createdBy === userId,
       isInLibrary: libraryUnitIds.has(u.id),
       parseError: safeResult?.parseError ?? false,
+      questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
     };
   });
 }
@@ -384,6 +388,7 @@ export async function getBrowsableUnits(
       isOwner: u.createdBy === userId,
       isInLibrary: libraryUnitIds.has(u.id),
       parseError: safeResult?.parseError ?? false,
+      questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
     };
   });
 }
@@ -447,6 +452,7 @@ export async function getUnitWithContent(
     createdBy: u.createdBy,
     lessons: safeResult?.lessons ?? [],
     parseError: safeResult?.parseError ?? false,
+    questionType: getUnitQuestionType({ lessons: safeResult?.lessons, markdown: u.markdown }),
   };
 }
 
@@ -600,6 +606,7 @@ export async function getCourseForManagement(
         icon: u.icon,
         visibility: u.visibility,
         lessonCount: lessons.length,
+        questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
       };
     }),
   };
@@ -630,6 +637,7 @@ export async function getUserOwnedStandaloneUnits(
       targetLanguage: u.targetLanguage,
       level: u.level,
       lessonCount: lessons.length,
+      questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
     };
   });
 }

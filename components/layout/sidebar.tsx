@@ -5,10 +5,9 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/chat", label: "Chat", icon: "💬" },
-  { href: "/units", label: "Units", icon: "📚" },
+  { href: "/units", label: "Library", icon: "📚" },
   { href: "/read", label: "Read", icon: "📖" },
   { href: "/words", label: "Words", icon: "🔤" },
-  { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
 interface SidebarProps {

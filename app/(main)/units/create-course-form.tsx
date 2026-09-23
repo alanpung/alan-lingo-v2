@@ -13,7 +13,14 @@ const LANGUAGES = [
   "th", "vi", "id", "ms", "uk", "bg",
 ];
 
-const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const CEFR_LEVELS = [
+  { id: "A1", label: "A1 · Beginner" },
+  { id: "A2", label: "A2 · Elementary" },
+  { id: "B1", label: "B1 · Intermediate" },
+  { id: "B2", label: "B2 · Upper Intermediate" },
+  { id: "C1", label: "C1 · Advanced" },
+  { id: "C2", label: "C2 · Mastery / Proficient" },
+];
 
 export function CreateCourseForm({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -123,9 +130,9 @@ export function CreateCourseForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setLevel(e.target.value)}
           className="w-full rounded-xl border-2 border-lingo-border bg-white px-4 py-3 text-base text-lingo-text focus:border-lingo-blue focus:outline-none transition-colors"
         >
-          {LEVELS.map((l) => (
-            <option key={l} value={l}>
-              {l}
+          {CEFR_LEVELS.map((lvl) => (
+            <option key={lvl.id} value={lvl.id}>
+              {lvl.label}
             </option>
           ))}
         </select>

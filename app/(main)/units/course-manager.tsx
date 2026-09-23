@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CourseManagementInfo, AvailableUnitForCourse } from "@/lib/content/types";
+import { QuestionTypeBadge } from "@/components/units/question-type-badge";
 import {
   fetchCourseManagementData,
   addUnitToCourse,
@@ -207,9 +208,14 @@ export function CourseManager({ courseId, isAdmin }: CourseManagerProps) {
               >
                 <span className="text-lg">{u.icon}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-lingo-text truncate">
-                    {u.title}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-lingo-text truncate">
+                      {u.title}
+                    </p>
+                    {u.questionType && (
+                      <QuestionTypeBadge questionType={u.questionType} size="xs" />
+                    )}
+                  </div>
                   <p className="text-xs text-lingo-text-light">
                     {u.lessonCount} {u.lessonCount === 1 ? "lesson" : "lessons"}
                   </p>
@@ -243,9 +249,14 @@ export function CourseManager({ courseId, isAdmin }: CourseManagerProps) {
               >
                 <span className="text-lg">{u.icon}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-lingo-text truncate">
-                    {u.title}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-lingo-text truncate">
+                      {u.title}
+                    </p>
+                    {u.questionType && (
+                      <QuestionTypeBadge questionType={u.questionType} size="xs" />
+                    )}
+                  </div>
                   <p className="text-xs text-lingo-text-light">
                     {u.lessonCount} {u.lessonCount === 1 ? "lesson" : "lessons"}
                   </p>

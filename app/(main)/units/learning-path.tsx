@@ -8,7 +8,6 @@ import { LessonNode } from "@/components/learning-path/lesson-node";
 import { PathConnector } from "@/components/learning-path/path-connector";
 import { getLanguageName } from "@/lib/languages";
 import { getUnitColor } from "@/lib/colors";
-import { UnitLibraryBanner } from "@/components/units/unit-library-banner";
 
 interface LearningPathProps {
   course: Course;
@@ -109,16 +108,8 @@ export function LearningPath({
               completedLessons={completedLessons}
               languageLabel={languageLabel}
               language={course.targetLanguage}
+              questionType={unit.questionType}
               onClick={() => setSelectedUnitId(unit.id)}
-              action={
-                userId && !isOwner ? (
-                  <UnitLibraryBanner
-                    unitId={unit.id}
-                    initialIsInLibrary={isInLibrary}
-                    compact
-                  />
-                ) : null
-              }
             />
           );
         })}
@@ -139,7 +130,7 @@ export function LearningPath({
           onClick={() => setSelectedUnitId(null)}
           className="mb-4 flex items-center gap-1 text-sm font-bold text-lingo-text-light hover:text-lingo-text transition-colors"
         >
-          &larr; All paths
+          &larr; All units
         </button>
         <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-6 text-center">
           <div className="mb-3 text-3xl">&#9888;&#65039;</div>
@@ -159,12 +150,6 @@ export function LearningPath({
     isLessonCompleted(completions, unit.id, li)
   ).length;
   const currentLessonIndex = findFirstIncompleteLesson(unit, completions);
-  const isOwner = Boolean(
-    userId &&
-      (unit.createdBy === userId ||
-        (!unit.createdBy && course.createdBy === userId))
-  );
-  const isInLibrary = libraryUnitIds.includes(unit.id);
 
   return (
     <div>
@@ -172,15 +157,8 @@ export function LearningPath({
         onClick={() => setSelectedUnitId(null)}
         className="mb-4 flex items-center gap-1 text-sm font-bold text-lingo-text-light hover:text-lingo-text transition-colors"
       >
-        ← All paths
+        ← All units
       </button>
-
-      {userId && !isOwner && (
-        <UnitLibraryBanner
-          unitId={unit.id}
-          initialIsInLibrary={isInLibrary}
-        />
-      )}
 
       <UnitCard
         title={unit.title}
@@ -191,6 +169,7 @@ export function LearningPath({
         completedLessons={completedLessons}
         languageLabel={languageLabel}
         language={course.targetLanguage}
+        questionType={unit.questionType}
       >
         {unit.lessons.map((lesson, lessonIndex) => {
           const completed = isLessonCompleted(completions, unit.id, lessonIndex);

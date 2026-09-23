@@ -221,7 +221,14 @@ export async function updateCourseTitle(
   return { success: true };
 }
 
-export async function createManualUnit(data: { title: string; targetLanguage: string; sourceLanguage?: string; level?: string; courseId?: string }): Promise<{ success: true; unitId: string } | { success: false; error: string }> {
+export async function createManualUnit(data: {
+  title: string;
+  targetLanguage: string;
+  sourceLanguage?: string;
+  level?: string;
+  courseId?: string;
+  questionType?: string;
+}): Promise<{ success: true; unitId: string } | { success: false; error: string }> {
   const session = await requireSession();
   if (!isAdminEmail(session.user.email)) return { success: false, error: "Only the site owner can create units" };
   if (!data.title?.trim()) return { success: false, error: "Title is required" };
@@ -233,32 +240,82 @@ export async function createManualUnit(data: { title: string; targetLanguage: st
   const sourceLanguage = data.sourceLanguage || "en";
   const level = data.level || "A1";
   const courseId = data.courseId || null;
+  const qType = data.questionType || "multiple-choice";
+
+  let exerciseBlock = "";
+  let icon = "📘";
+
+  switch (qType) {
+    case "fill-in-the-blank":
+      icon = "✏️";
+      exerciseBlock = `[fill-in-the-blank]\nsentence: "Complete the ___ here."\nblank: "word"\nsrsWords: "word"`;
+      break;
+    case "matching-pairs":
+      icon = "🧩";
+      exerciseBlock = `[matching-pairs]\n- "Word 1" = "Translation 1"\n- "Word 2" = "Translation 2"\n- "Word 3" = "Translation 3"`;
+      break;
+    case "listening":
+      icon = "🎧";
+      exerciseBlock = `[listening]\ntext: "Sentence to listen and transcribe"\nttsLang: "${targetLanguage}"\nsrsWords: "sample"`;
+      break;
+    case "word-bank":
+      icon = "🧱";
+      exerciseBlock = `[word-bank]\ntext: "Translate: 'Sentence here'"\nwords: "sample" "word" "here"\nanswer: "sample" "word" "here"\nsrsWords: "sample"`;
+      break;
+    case "speaking":
+      icon = "🎙️";
+      exerciseBlock = `[speaking]\nsentence: "Sentence to practice speaking"\nsrsWords: "sample"`;
+      break;
+    case "flashcard-review":
+      icon = "🎴";
+      exerciseBlock = `[flashcard-review]\nfront: "Word or prompt"\nback: "Meaning or translation"\nsrsWords: "sample"`;
+      break;
+    case "translation":
+      icon = "🌐";
+      exerciseBlock = `[translation]\ntext: "Translate to target language:"\nsentence: "Sentence to translate"\nanswer: "Translation here"\nsrsWords: "sample"`;
+      break;
+    case "multiple-choice":
+    default:
+      icon = "🎯";
+      exerciseBlock = `[multiple-choice]\ntext: "Select the correct option"\nchoices:\n  - "Option 1" (correct)\n  - "Option 2"\n  - "Option 3"\nsrsWords: "sample"`;
+      break;
+  }
+
   const initialMarkdown = `---
 unitTitle: "${title}"
 description: "Practice exercises for ${title}"
-icon: "📘"
+icon: "${icon}"
 color: "#4CAF50"
 targetLanguage: "${targetLanguage}"
 sourceLanguage: "${sourceLanguage}"
 level: "${level}"
+questionType: "${qType}"
 ---
 
 ---
 lessonTitle: "Lesson 1: Introduction"
-description: "Basic introduction and vocabulary"
-icon: "👋"
+description: "Practice exercises"
+icon: "${icon}"
 color: "#FF9600"
 ---
 
-[multiple-choice]
-text: "Select the correct option"
-choices:
-  - "Option 1" (correct)
-  - "Option 2"
-srsWords: "sample"
+${exerciseBlock}
 `;
 
-  await db.insert(unit).values({ id: unitId, courseId, title, description: `Practice exercises for ${title}`, icon: "📘", color: "#4CAF50", markdown: initialMarkdown, targetLanguage, sourceLanguage, level, visibility: null, createdBy: session.user.id });
+  await db.insert(unit).values({
+    id: unitId,
+    courseId,
+    title,
+    description: `Practice exercises for ${title}`,
+    icon,
+    color: "#4CAF50",
+    markdown: initialMarkdown,
+    targetLanguage,
+    sourceLanguage,
+    level,
+    visibility: null,
+    createdBy: session.user.id,
+  });
   revalidateUnitPages(courseId);
   return { success: true, unitId };
 }

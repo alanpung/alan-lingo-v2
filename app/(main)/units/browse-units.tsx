@@ -155,7 +155,7 @@ function BrowseUnitCard({
               </span>
             ) : unit.isInLibrary ? (
               <span className="inline-flex items-center gap-1 rounded-xl border-2 border-lingo-green/40 bg-lingo-green/10 px-3 py-1.5 text-xs font-bold text-lingo-green">
-                <span>✓</span> In Library
+                <span>✓</span> In My Library
               </span>
             ) : (
               <button
@@ -163,7 +163,7 @@ function BrowseUnitCard({
                 disabled={isPending}
                 className="rounded-xl border-2 border-lingo-blue bg-lingo-blue px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-lingo-blue/90 active:translate-y-[1px] disabled:opacity-50"
               >
-                {isPending ? "Adding..." : "+ Add to Library"}
+                {isPending ? "Adding..." : "+ Add to My Library"}
               </button>
             )}
           </div>

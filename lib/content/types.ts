@@ -1,3 +1,7 @@
+import type { QuestionTypeInfo } from "./question-types";
+
+export type { QuestionTypeInfo };
+
 export interface Course {
   id: string;
   title: string;
@@ -18,6 +22,7 @@ export interface Unit {
   lessons: UnitLesson[];
   parseError?: boolean;
   createdBy?: string | null;
+  questionType?: QuestionTypeInfo | null;
 }
 
 /**
@@ -33,6 +38,7 @@ export interface ParsedUnitMeta {
   sourceLanguage: string | null;
   level: string | null;
   courseId: string | null;
+  questionType?: string | null;
 }
 
 /** Full result of parsing unit markdown: metadata + lessons. */
@@ -179,6 +185,7 @@ export interface StandaloneUnitInfo {
   isOwner: boolean;
   isInLibrary?: boolean;
   parseError?: boolean;
+  questionType?: QuestionTypeInfo | null;
 }
 
 export interface UnitWithContent {
@@ -195,6 +202,7 @@ export interface UnitWithContent {
   createdBy: string | null;
   lessons: UnitLesson[];
   parseError?: boolean;
+  questionType?: QuestionTypeInfo | null;
 }
 
 export interface OwnedCourseInfo {
@@ -227,6 +235,7 @@ export interface CourseManagementInfo {
     icon: string;
     visibility: string | null;
     lessonCount: number;
+    questionType?: QuestionTypeInfo | null;
   }[];
 }
 
@@ -237,4 +246,5 @@ export interface AvailableUnitForCourse {
   targetLanguage: string;
   level: string | null;
   lessonCount: number;
+  questionType?: QuestionTypeInfo | null;
 }

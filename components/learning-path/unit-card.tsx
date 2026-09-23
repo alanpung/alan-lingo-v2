@@ -1,4 +1,6 @@
 import { HoverableText } from "@/components/word/hoverable-text";
+import { QuestionTypeBadge } from "@/components/units/question-type-badge";
+import type { QuestionTypeInfo } from "@/lib/content/question-types";
 
 interface UnitCardProps {
   title: string;
@@ -9,6 +11,7 @@ interface UnitCardProps {
   completedLessons: number;
   languageLabel?: string;
   language?: string;
+  questionType?: QuestionTypeInfo | null;
   onClick?: () => void;
   children?: React.ReactNode;
   action?: React.ReactNode;
@@ -23,6 +26,7 @@ export function UnitCard({
   completedLessons,
   languageLabel,
   language,
+  questionType,
   onClick,
   children,
   action,
@@ -49,7 +53,12 @@ export function UnitCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-lg font-bold text-lingo-text truncate">{title}</h3>
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                <h3 className="text-lg font-bold text-lingo-text truncate">{title}</h3>
+                {questionType && (
+                  <QuestionTypeBadge questionType={questionType} size="xs" />
+                )}
+              </div>
               {action && (
                 <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                   {action}
@@ -88,9 +97,14 @@ export function UnitCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-lg font-bold text-lingo-text truncate">
-              {language ? <HoverableText text={title} language={language} /> : title}
-            </h3>
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+              <h3 className="text-lg font-bold text-lingo-text truncate">
+                {language ? <HoverableText text={title} language={language} /> : title}
+              </h3>
+              {questionType && (
+                <QuestionTypeBadge questionType={questionType} size="xs" />
+              )}
+            </div>
             {action && <div className="shrink-0">{action}</div>}
           </div>
           <p className="text-sm text-lingo-text-light">{description}</p>

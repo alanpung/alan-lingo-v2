@@ -58,21 +58,21 @@ export function CourseLibraryBanner({
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-xl border-2 border-lingo-green/30 bg-lingo-green/5 px-4 py-2.5">
         <div className="flex items-center gap-2 text-xs font-bold text-lingo-green">
           <span>✓</span>
-          <span>In your library</span>
+          <span>In My Library</span>
         </div>
         <div className="flex items-center gap-3">
           <Link
             href="/units"
             className="text-xs font-bold text-lingo-blue hover:underline"
           >
-            View in Learn &rarr;
+            View in Library &rarr;
           </Link>
           <button
             onClick={handleRemove}
             disabled={isPending}
             className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline disabled:opacity-50"
           >
-            {isPending ? "Removing..." : "Remove from Library"}
+            {isPending ? "Removing..." : "Remove from My Library"}
           </button>
         </div>
       </div>
@@ -82,10 +82,10 @@ export function CourseLibraryBanner({
   return (
     <div className="mb-6 rounded-2xl border-2 border-lingo-blue/30 bg-lingo-blue/5 p-4 text-center">
       <h2 className="text-base font-black text-lingo-text mb-1">
-        Add this course to your library
+        Add this course to your Library
       </h2>
       <p className="text-xs text-lingo-text-light mb-3 max-w-sm mx-auto">
-        Save this course and its units to your library to track your learning progress and practice anytime.
+        Save this course and its units to your Library to track your learning progress and practice anytime.
       </p>
       {error && (
         <p className="text-xs text-red-500 font-bold mb-2">{error}</p>
@@ -98,10 +98,10 @@ export function CourseLibraryBanner({
         {isPending ? (
           <>
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            Adding to your library...
+            Adding to My Library...
           </>
         ) : (
-          "+ Add Course to Library"
+          "+ Add to My Library"
         )}
       </button>
     </div>

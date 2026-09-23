@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getLanguageName } from "@/lib/languages";
 import { createManualUnit } from "@/lib/actions/units";
+import { QUESTION_TYPES, type QuestionType } from "@/lib/content/question-types";
 
 const LANGUAGES = [
   "en", "es", "fr", "de", "pt", "it", "nl", "ru", "zh", "ja", "ko", "ar",
@@ -15,6 +16,17 @@ const LANGUAGES = [
 ];
 
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+
+const QUESTION_TYPE_OPTIONS: { id: QuestionType; label: string; icon: string }[] = [
+  { id: "multiple-choice", label: "Multiple Choice", icon: "🎯" },
+  { id: "fill-in-the-blank", label: "Fill in Blank", icon: "✏️" },
+  { id: "matching-pairs", label: "Matching Pairs", icon: "🧩" },
+  { id: "listening", label: "Listening", icon: "🎧" },
+  { id: "word-bank", label: "Word Bank", icon: "🧱" },
+  { id: "speaking", label: "Speaking", icon: "🎙️" },
+  { id: "flashcard-review", label: "Flashcards", icon: "🎴" },
+  { id: "translation", label: "Translation", icon: "🌐" },
+];
 
 export function CreateUnitForm({
   onClose,
@@ -33,6 +45,7 @@ export function CreateUnitForm({
   );
   const [sourceLanguage, setSourceLanguage] = useState("en");
   const [level, setLevel] = useState("A1");
+  const [questionType, setQuestionType] = useState<QuestionType>("multiple-choice");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +62,7 @@ export function CreateUnitForm({
           targetLanguage,
           sourceLanguage,
           level,
+          questionType,
         });
 
         if (result.success) {
@@ -147,6 +161,33 @@ export function CreateUnitForm({
                 }`}
               >
                 {lvl}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-lingo-text-light">
+            Question Type (1 per unit)
+          </label>
+          <p className="text-xs text-lingo-text-light mb-2">
+            Units contain exercises of a single type. Courses combine units with different types.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {QUESTION_TYPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setQuestionType(opt.id)}
+                disabled={isPending}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition-colors text-left ${
+                  questionType === opt.id
+                    ? "bg-lingo-green text-white border-2 border-lingo-green"
+                    : "border-2 border-lingo-border bg-white text-lingo-text hover:bg-lingo-gray/40"
+                }`}
+              >
+                <span className="text-base">{opt.icon}</span>
+                <span className="truncate">{opt.label}</span>
               </button>
             ))}
           </div>

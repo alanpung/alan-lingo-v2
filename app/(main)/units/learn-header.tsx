@@ -28,7 +28,7 @@ export function LearnHeader({
           href="/units/browse"
           className="rounded-xl border-2 border-lingo-border bg-white px-4 py-2.5 text-sm font-bold text-lingo-text shadow-[0_2px_0_0] shadow-lingo-border transition-all hover:border-lingo-blue hover:bg-lingo-blue/5 active:translate-y-[1px] active:shadow-none"
         >
-          Browse Public Units
+          Browse Courses
         </Link>
       </div>
 
