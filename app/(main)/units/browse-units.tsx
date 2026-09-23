@@ -17,7 +17,20 @@ export function BrowseUnits({ units, initialTargetLanguage }: BrowseUnitsProps) 
   const [targetLanguage, setTargetLanguage] = useState(initialTargetLanguage ?? "");
   const [level, setLevel] = useState("");
 
-  if (units.length === 0) return null;
+  if (units.length === 0) {
+    return (
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-bold text-lingo-text">
+          Browse Public Units
+        </h2>
+        <div className="rounded-2xl border-2 border-dashed border-lingo-border p-6 text-center">
+          <p className="text-sm font-medium text-lingo-text-light">
+            No public units available to browse yet.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   const targetLanguages = [
     ...new Set(units.map((u) => u.targetLanguage)),
@@ -136,13 +149,23 @@ function BrowseUnitCard({
         )}
         {!hasParseError && (
           <div className="shrink-0 pr-4">
-            <button
-              onClick={handleAdd}
-              disabled={isPending}
-              className="rounded-xl border-2 border-lingo-blue bg-lingo-blue px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-lingo-blue/90 active:translate-y-[1px] disabled:opacity-50"
-            >
-              {isPending ? "Adding..." : "+ Add"}
-            </button>
+            {unit.isOwner ? (
+              <span className="inline-block rounded-xl border-2 border-lingo-gray bg-lingo-gray/50 px-3 py-1.5 text-xs font-bold text-lingo-text-light">
+                Your Unit
+              </span>
+            ) : unit.isInLibrary ? (
+              <span className="inline-flex items-center gap-1 rounded-xl border-2 border-lingo-green/40 bg-lingo-green/10 px-3 py-1.5 text-xs font-bold text-lingo-green">
+                <span>✓</span> In Library
+              </span>
+            ) : (
+              <button
+                onClick={handleAdd}
+                disabled={isPending}
+                className="rounded-xl border-2 border-lingo-blue bg-lingo-blue px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-lingo-blue/90 active:translate-y-[1px] disabled:opacity-50"
+              >
+                {isPending ? "Adding..." : "+ Add to Library"}
+              </button>
+            )}
           </div>
         )}
       </div>

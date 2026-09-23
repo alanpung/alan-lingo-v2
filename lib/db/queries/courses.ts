@@ -182,6 +182,7 @@ export async function getCourseWithContent(
         color: u.color ?? "#58CC02",
         lessons: safeResult?.lessons ?? [],
         parseError: safeResult?.parseError ?? false,
+        createdBy: u.createdBy ?? null,
       };
     }),
   };
@@ -230,10 +231,10 @@ export async function getStandaloneUnits(
   const libraryCondition =
     libraryUnitIds.size > 0
       ? or(
-          eq(unit.createdBy, userId),
+          and(eq(unit.createdBy, userId), isNull(unit.courseId)),
           inArray(unit.id, [...libraryUnitIds])
         )
-      : eq(unit.createdBy, userId);
+      : and(eq(unit.createdBy, userId), isNull(unit.courseId));
 
   const rows = await db
     .select({
@@ -252,7 +253,7 @@ export async function getStandaloneUnits(
     })
     .from(unit)
     .leftJoin(user, eq(unit.createdBy, user.id))
-    .where(and(isNull(unit.courseId), libraryCondition));
+    .where(libraryCondition);
 
   if (rows.length === 0) return [];
 
@@ -304,29 +305,19 @@ export async function getStandaloneUnits(
   });
 }
 
-/** Public standalone units that the user hasn't added to their library and doesn't own. */
+/** Public units that users can browse and add to their library. */
 export async function getBrowsableUnits(
   userId: string
 ): Promise<StandaloneUnitInfo[]> {
-  let libraryUnitIds: string[] = [];
+  let libraryUnitIds = new Set<string>();
   try {
     const libraryRows = await db
       .select({ unitId: userUnitLibrary.unitId })
       .from(userUnitLibrary)
       .where(eq(userUnitLibrary.userId, userId));
-    libraryUnitIds = libraryRows.map((r) => r.unitId);
+    libraryUnitIds = new Set(libraryRows.map((r) => r.unitId));
   } catch (err) {
     console.warn("userUnitLibrary query failed:", err);
-  }
-
-  const conditions = [
-    isNull(unit.courseId),
-    eq(unit.visibility, "public"),
-    or(ne(unit.createdBy, userId), isNull(unit.createdBy)),
-  ];
-
-  if (libraryUnitIds.length > 0) {
-    conditions.push(notInArray(unit.id, libraryUnitIds));
   }
 
   const rows = await db
@@ -343,10 +334,17 @@ export async function getBrowsableUnits(
       visibility: unit.visibility,
       createdBy: unit.createdBy,
       creatorName: user.name,
+      courseVisibility: course.visibility,
     })
     .from(unit)
     .leftJoin(user, eq(unit.createdBy, user.id))
-    .where(and(...conditions));
+    .leftJoin(course, eq(unit.courseId, course.id))
+    .where(
+      or(
+        eq(unit.visibility, "public"),
+        eq(course.visibility, "public")
+      )
+    );
 
   if (rows.length === 0) return [];
 
@@ -364,10 +362,10 @@ export async function getBrowsableUnits(
       level: u.level ?? null,
       lessonCount: lessons.length,
       completedLessons: 0,
-      visibility: u.visibility ?? "public",
+      visibility: u.visibility ?? u.courseVisibility ?? "public",
       creatorName: u.creatorName ?? null,
-      isOwner: false,
-      isInLibrary: false,
+      isOwner: u.createdBy === userId,
+      isInLibrary: libraryUnitIds.has(u.id),
       parseError: safeResult?.parseError ?? false,
     };
   });

@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { OwnedCourseInfo } from "@/lib/content/types";
 import type { AvailableUnitForCourse, CourseManagementInfo } from "@/lib/content/types";
 import { getLanguageName } from "@/lib/languages";
-import { makeCoursePublic, makeCoursePrivate, deleteCourse } from "@/lib/actions/units";
+import { makeCoursePublic, makeCoursePrivate, deleteCourse, updateCourseTitle } from "@/lib/actions/units";
 import { CreateCourseForm } from "./create-course-form";
 import { CourseManager } from "./course-manager";
 import { CopyLinkButton } from "@/components/ui/copy-link-button";
@@ -89,9 +89,32 @@ function OwnedCourseCard({
   const [activeAction, setActiveAction] = useState<
     null | "make-public" | "make-private" | "delete"
   >(null);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(course.title);
+  const [titleError, setTitleError] = useState<string | null>(null);
   const isPublic = course.visibility === "public";
   const isLocked = isPublic && !isAdmin;
   const isActionPending = isPending || activeAction !== null;
+
+  function handleSaveTitle(e: React.FormEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const trimmed = titleDraft.trim();
+    if (!trimmed) {
+      setTitleError("Title cannot be empty");
+      return;
+    }
+    setTitleError(null);
+    startTransition(async () => {
+      const res = await updateCourseTitle(course.id, trimmed);
+      if (res.success) {
+        setIsEditingTitle(false);
+        router.refresh();
+      } else {
+        setTitleError(res.error);
+      }
+    });
+  }
 
   function handleMakePublic() {
     const confirmed = window.confirm(
@@ -176,6 +199,34 @@ function OwnedCourseCard({
                 {isPublic ? "Public" : "Private"}
               </span>
             </div>
+            {isEditingTitle && (
+              <form onSubmit={handleSaveTitle} onClick={(e) => e.stopPropagation()} className="my-2 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  disabled={isPending}
+                  className="flex-1 rounded-lg border-2 border-lingo-blue px-2.5 py-1 text-sm font-bold text-lingo-text focus:outline-none"
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="rounded-lg border-2 border-lingo-green bg-lingo-green px-2.5 py-1 text-xs font-bold text-white hover:bg-lingo-green/90 disabled:opacity-50"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTitle(false)}
+                  disabled={isPending}
+                  className="rounded-lg border border-lingo-border bg-white px-2.5 py-1 text-xs font-bold text-lingo-text hover:bg-lingo-gray/40 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                {titleError && <p className="text-xs text-red-500 font-bold">{titleError}</p>}
+              </form>
+            )}
             <p className="text-sm text-lingo-text-light">
               {getLanguageName(course.sourceLanguage)} →{" "}
               {getLanguageName(course.targetLanguage)}
@@ -218,6 +269,31 @@ function OwnedCourseCard({
       {/* Actions bar */}
       <div className="border-t border-lingo-border px-4 py-2 flex flex-wrap items-center gap-2">
         {isPublic && <CopyLinkButton path={`/units/${course.id}`} />}
+        {!isLocked && (
+          <button
+            onClick={() => {
+              setTitleDraft(course.title);
+              setIsEditingTitle(!isEditingTitle);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-lingo-text hover:bg-lingo-gray/30 transition-colors"
+          >
+            <svg
+              className="h-3.5 w-3.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+              />
+            </svg>
+            Edit Title
+          </button>
+        )}
+
         {!isLocked && (
           <button
             onClick={onToggleManage}

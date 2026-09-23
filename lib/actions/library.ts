@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { unit, user, userUnitLibrary } from "@/lib/db/schema";
+import { unit, course, user, userUnitLibrary } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireSession } from "@/lib/auth-server";
 import { revalidatePath } from "next/cache";
@@ -38,7 +38,28 @@ export async function addUnitToLibrary(
     isCreatedByAdmin = creator?.email ? isAdminEmail(creator.email) : false;
   }
 
-  if (existing.visibility !== "public" && !isCreatedByAdmin) {
+  // If in a course, check if parent course is public or created by admin
+  let isParentCoursePublic = false;
+  if (existing.courseId) {
+    const [parentCourse] = await db
+      .select({ visibility: course.visibility, createdBy: course.createdBy })
+      .from(course)
+      .where(eq(course.id, existing.courseId));
+    if (parentCourse) {
+      if (parentCourse.visibility === "public") isParentCoursePublic = true;
+      if (parentCourse.createdBy) {
+        const [courseCreator] = await db
+          .select({ email: user.email })
+          .from(user)
+          .where(eq(user.id, parentCourse.createdBy));
+        if (courseCreator?.email && isAdminEmail(courseCreator.email)) {
+          isCreatedByAdmin = true;
+        }
+      }
+    }
+  }
+
+  if (existing.visibility !== "public" && !isCreatedByAdmin && !isParentCoursePublic) {
     return { success: false, error: "Unit is not public" };
   }
 
@@ -53,6 +74,10 @@ export async function addUnitToLibrary(
     .onConflictDoNothing();
 
   revalidatePath("/units", "page");
+  revalidatePath("/units/browse", "page");
+  if (existing.courseId) {
+    revalidatePath(`/units/${existing.courseId}`, "page");
+  }
   revalidatePath(`/unit/${unitId}`, "page");
   return { success: true };
 }

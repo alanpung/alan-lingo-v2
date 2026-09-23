@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { addOrFailWord } from "@/lib/actions/srs";
-import { Volume2 } from "lucide-react";
 import { useAudio } from "@/hooks/use-audio";
 
 interface WordData {
@@ -111,7 +110,9 @@ export function WordTooltip({ word, language }: WordTooltipProps) {
           title="Listen to word"
           aria-label="Listen to word"
         >
-          <Volume2 className="h-5 w-5" />
+          <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+          </svg>
         </button>
       </div>
 
@@ -146,7 +147,9 @@ export function WordTooltip({ word, language }: WordTooltipProps) {
               title="Listen to example sentence"
               aria-label="Listen to example sentence"
             >
-              <Volume2 className="h-4 w-4" />
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+              </svg>
             </button>
           </div>
           {data.exampleEnglish && (

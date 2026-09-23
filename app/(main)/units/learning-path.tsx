@@ -8,6 +8,7 @@ import { LessonNode } from "@/components/learning-path/lesson-node";
 import { PathConnector } from "@/components/learning-path/path-connector";
 import { getLanguageName } from "@/lib/languages";
 import { getUnitColor } from "@/lib/colors";
+import { UnitLibraryBanner } from "@/components/units/unit-library-banner";
 
 interface LearningPathProps {
   course: Course;
@@ -15,6 +16,8 @@ interface LearningPathProps {
     unitId: string;
     lessonIndex: number;
   }[];
+  libraryUnitIds?: string[];
+  userId?: string;
 }
 
 function isLessonCompleted(
@@ -42,6 +45,8 @@ function findFirstIncompleteLesson(
 export function LearningPath({
   course,
   completions,
+  libraryUnitIds = [],
+  userId,
 }: LearningPathProps) {
   const searchParams = useSearchParams();
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(
@@ -86,6 +91,13 @@ export function LearningPath({
             isLessonCompleted(completions, unit.id, li)
           ).length;
 
+          const isOwner = Boolean(
+            userId &&
+              (unit.createdBy === userId ||
+                (!unit.createdBy && course.createdBy === userId))
+          );
+          const isInLibrary = libraryUnitIds.includes(unit.id);
+
           return (
             <UnitCard
               key={unit.id}
@@ -98,6 +110,15 @@ export function LearningPath({
               languageLabel={languageLabel}
               language={course.targetLanguage}
               onClick={() => setSelectedUnitId(unit.id)}
+              action={
+                userId && !isOwner ? (
+                  <UnitLibraryBanner
+                    unitId={unit.id}
+                    initialIsInLibrary={isInLibrary}
+                    compact
+                  />
+                ) : null
+              }
             />
           );
         })}
@@ -138,6 +159,12 @@ export function LearningPath({
     isLessonCompleted(completions, unit.id, li)
   ).length;
   const currentLessonIndex = findFirstIncompleteLesson(unit, completions);
+  const isOwner = Boolean(
+    userId &&
+      (unit.createdBy === userId ||
+        (!unit.createdBy && course.createdBy === userId))
+  );
+  const isInLibrary = libraryUnitIds.includes(unit.id);
 
   return (
     <div>
@@ -147,6 +174,13 @@ export function LearningPath({
       >
         ← All paths
       </button>
+
+      {userId && !isOwner && (
+        <UnitLibraryBanner
+          unitId={unit.id}
+          initialIsInLibrary={isInLibrary}
+        />
+      )}
 
       <UnitCard
         title={unit.title}

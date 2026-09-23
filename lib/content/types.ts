@@ -17,6 +17,7 @@ export interface Unit {
   color: string;
   lessons: UnitLesson[];
   parseError?: boolean;
+  createdBy?: string | null;
 }
 
 /**

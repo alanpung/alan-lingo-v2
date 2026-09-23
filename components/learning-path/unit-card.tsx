@@ -11,6 +11,7 @@ interface UnitCardProps {
   language?: string;
   onClick?: () => void;
   children?: React.ReactNode;
+  action?: React.ReactNode;
 }
 
 export function UnitCard({
@@ -24,14 +25,20 @@ export function UnitCard({
   language,
   onClick,
   children,
+  action,
 }: UnitCardProps) {
   const progress = totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
 
   if (onClick) {
     return (
-      <button
+      <div
         onClick={onClick}
-        className="w-full rounded-2xl border-2 border-lingo-gray bg-white p-4 text-left transition-transform hover:scale-[1.02] active:scale-[0.98]"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") onClick();
+        }}
+        className="w-full cursor-pointer rounded-2xl border-2 border-lingo-gray bg-white p-4 text-left transition-transform hover:scale-[1.02] active:scale-[0.98]"
       >
         <div className="flex items-center gap-3">
           <div
@@ -41,8 +48,15 @@ export function UnitCard({
             {icon}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-lg font-bold text-lingo-text">{title}</h3>
-            <p className="text-sm text-lingo-text-light">{description}</p>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-lg font-bold text-lingo-text truncate">{title}</h3>
+              {action && (
+                <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                  {action}
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-lingo-text-light truncate">{description}</p>
             {languageLabel && (
               <p className="text-xs text-lingo-text-light mt-0.5">{languageLabel}</p>
             )}
@@ -59,7 +73,7 @@ export function UnitCard({
             {completedLessons}/{totalLessons}
           </span>
         </div>
-      </button>
+      </div>
     );
   }
 
@@ -72,14 +86,19 @@ export function UnitCard({
         >
           {icon}
         </div>
-        <div className="flex-1">
-          <h3 className="text-lg font-bold text-lingo-text">{language ? <HoverableText text={title} language={language} /> : title}</h3>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-lg font-bold text-lingo-text truncate">
+              {language ? <HoverableText text={title} language={language} /> : title}
+            </h3>
+            {action && <div className="shrink-0">{action}</div>}
+          </div>
           <p className="text-sm text-lingo-text-light">{description}</p>
           {languageLabel && (
             <p className="text-xs text-lingo-text-light mt-0.5">{languageLabel}</p>
           )}
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <span className="text-sm font-bold" style={{ color }}>
             {completedLessons}/{totalLessons}
           </span>
