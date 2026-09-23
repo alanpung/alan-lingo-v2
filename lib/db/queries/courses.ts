@@ -361,9 +361,9 @@ export async function getBrowsableUnits(
     .leftJoin(user, eq(unit.createdBy, user.id))
     .leftJoin(course, eq(unit.courseId, course.id))
     .where(
-      or(
-        eq(unit.visibility, "public"),
-        eq(course.visibility, "public")
+      and(
+        isNull(unit.courseId),
+        eq(unit.visibility, "public")
       )
     );
 

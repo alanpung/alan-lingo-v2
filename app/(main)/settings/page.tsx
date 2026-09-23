@@ -17,6 +17,8 @@ export default async function SettingsPage() {
   return (
     <SettingsView
       isAdmin={isAdmin}
+      userEmail={session.user.email}
+      userName={session.user.name || undefined}
       prompts={prompts}
       initialMemory={memory}
     />

@@ -5,8 +5,10 @@ import { headers } from "next/headers";
 import {
   listCoursesWithLessonCounts,
   getAvailableFilters,
+  getBrowsableUnits,
 } from "@/lib/db/queries/courses";
 import { CourseBrowser } from "../course-browser";
+import { BrowseUnits } from "../browse-units";
 
 export default async function BrowsePage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -16,9 +18,10 @@ export default async function BrowsePage() {
     redirect("/sign-in?redirect=/units/browse");
   }
 
-  const [courses, filters] = await Promise.all([
+  const [courses, filters, browsableUnits] = await Promise.all([
     listCoursesWithLessonCounts(undefined, userId),
     getAvailableFilters(userId),
+    getBrowsableUnits(userId),
   ]);
 
   return (
@@ -30,21 +33,28 @@ export default async function BrowsePage() {
         >
           &larr; Back to Library
         </Link>
-        <h1 className="text-2xl font-black text-lingo-text">Browse Courses</h1>
+        <h1 className="text-2xl font-black text-lingo-text">Browse Content</h1>
       </div>
 
-      {courses.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-lg text-lingo-text-light mb-2">
-            No public courses are available yet.
-          </p>
-          <p className="text-sm text-lingo-text-light">
-            Public courses will appear here when they are published.
-          </p>
-        </div>
-      ) : (
-        <CourseBrowser courses={courses} filters={filters} />
-      )}
+      {/* Courses Section */}
+      <section className="mb-10">
+        <h2 className="mb-3 text-lg font-bold text-lingo-text">Public Courses</h2>
+        {courses.length === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-lingo-border p-6 text-center">
+            <p className="text-sm font-medium text-lingo-text-light">
+              No public courses available yet.
+            </p>
+          </div>
+        ) : (
+          <CourseBrowser courses={courses} filters={filters} />
+        )}
+      </section>
+
+      {/* Standalone Units Section */}
+      <section className="mb-8">
+        <BrowseUnits units={browsableUnits} />
+      </section>
     </div>
   );
 }
+

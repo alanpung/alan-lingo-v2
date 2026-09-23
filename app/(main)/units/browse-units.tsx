@@ -7,6 +7,7 @@ import type { StandaloneUnitInfo } from "@/lib/content/types";
 import { getLanguageName } from "@/lib/languages";
 import { getUnitColor } from "@/lib/colors";
 import { addUnitToLibrary } from "@/lib/actions/library";
+import { QuestionTypeBadge } from "@/components/units/question-type-badge";
 
 interface BrowseUnitsProps {
   units: StandaloneUnitInfo[];
@@ -193,6 +194,9 @@ function UnitCardContent({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="font-bold text-lingo-text truncate">{unit.title}</p>
+          {unit.questionType && (
+            <QuestionTypeBadge questionType={unit.questionType} size="xs" />
+          )}
           {hasParseError && (
             <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">
               Can&apos;t be parsed

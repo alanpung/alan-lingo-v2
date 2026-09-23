@@ -4,14 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PromptEditor } from "./prompt-editor";
 import { MemoryEditor } from "./memory-editor";
+import { ChangePasswordForm } from "./change-password-form";
 import type { PromptWithOverride } from "@/lib/actions/prompts";
 
 export function SettingsView({
   isAdmin = false,
+  userEmail,
+  userName,
   prompts,
   initialMemory,
 }: {
   isAdmin?: boolean;
+  userEmail?: string;
+  userName?: string;
   prompts: PromptWithOverride[];
   initialMemory: string;
 }) {
@@ -32,7 +37,7 @@ export function SettingsView({
       if (!res.ok) {
         throw new Error("Failed to delete account");
       }
-      router.push("/");
+      router.push("/sign-in");
       router.refresh();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to delete account";
@@ -42,16 +47,43 @@ export function SettingsView({
   };
 
   return (
-    <div className="mx-auto max-w-2xl py-6 pb-20">
-      <h1 className="text-2xl font-black text-lingo-text mb-1">Settings</h1>
-      <p className="text-sm text-lingo-text-light font-bold mb-6">
-        {isAdmin
-          ? "Customize your AI settings and manage your account."
-          : "Manage your account settings."}
-      </p>
+    <div className="mx-auto max-w-2xl py-6 pb-20 space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-lingo-text mb-1">Settings</h1>
+        <p className="text-sm text-lingo-text-light font-bold">
+          Manage your security, account credentials, and preferences.
+        </p>
+      </div>
 
+      {/* Account Info Card */}
+      <div className="rounded-2xl border-2 border-lingo-border bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-lingo-blue/15 text-2xl font-black text-lingo-blue">
+            {userName ? userName.charAt(0).toUpperCase() : userEmail ? userEmail.charAt(0).toUpperCase() : "👤"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-base font-bold text-lingo-text truncate">
+              {userName || "Learner"}
+            </p>
+            <p className="text-xs text-lingo-text-light truncate">
+              {userEmail}
+            </p>
+          </div>
+          {isAdmin && (
+            <span className="rounded-full bg-lingo-yellow/20 px-2.5 py-1 text-xs font-bold text-amber-700">
+              Admin
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <ChangePasswordForm />
+
+      {/* Admin AI Configs */}
       {isAdmin && (
-        <div className="space-y-4">
+        <div className="space-y-4 pt-2">
+          <h2 className="text-lg font-black text-lingo-text">AI Configuration</h2>
           <MemoryEditor initialValue={initialMemory} />
 
           {prompts.map((p) => (
@@ -61,15 +93,15 @@ export function SettingsView({
       )}
 
       {/* Danger Zone */}
-      <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-6 mt-8 shadow-sm">
-        <h2 className="text-xl font-black text-red-600 mb-1">Danger Zone</h2>
+      <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-6 shadow-sm">
+        <h2 className="text-lg font-black text-red-600 mb-1">Danger Zone</h2>
         <p className="text-xs text-red-500 font-bold mb-4">
           Irreversible and destructive actions for your account.
         </p>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-red-200">
           <div>
-            <p className="text-base font-bold text-lingo-text">Delete Account</p>
+            <p className="text-sm font-bold text-lingo-text">Delete Account</p>
             <p className="text-xs text-lingo-text-light">
               Permanently delete your account, SRS vocabulary cards, and learning history.
             </p>
@@ -92,7 +124,7 @@ export function SettingsView({
               Are you absolutely sure?
             </h3>
             <p className="text-sm text-lingo-text-light mb-6">
-              This action cannot be undone. This will permanently delete your account and all associated data including learning progress, chat memories, and custom prompts.
+              This action cannot be undone. This will permanently delete your account and all associated data including learning progress, SRS review records, and preferences.
             </p>
 
             {deleteError && (
@@ -125,3 +157,4 @@ export function SettingsView({
     </div>
   );
 }
+
