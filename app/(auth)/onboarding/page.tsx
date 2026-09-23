@@ -21,5 +21,12 @@ export default async function OnboardingPage() {
     redirect(DEFAULT_PATH);
   }
 
-  return <OnboardingForm nativeLanguage={nativeLanguage} />;
+  return (
+    <>
+      <h2 className="mb-6 text-center text-2xl font-bold text-lingo-text">
+        Set up your languages
+      </h2>
+      <OnboardingForm nativeLanguage={nativeLanguage} />
+    </>
+  );
 }

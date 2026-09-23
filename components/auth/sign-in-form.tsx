@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Turnstile, type TurnstileRef } from "@/components/auth/turnstile";
 import Image from "next/image";
 import Link from "next/link";
+import { DEFAULT_PATH } from "@/lib/constants";
 
 interface SignInFormProps {
   redirectUrl?: string;
@@ -32,7 +33,7 @@ export function SignInForm({ redirectUrl, initialError }: SignInFormProps) {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileRef>(null);
 
-  const destination = redirectUrl || "/onboarding";
+  const destination = redirectUrl || DEFAULT_PATH;
 
   const handleTurnstileVerify = useCallback((token: string) => {
     setTurnstileToken(token);
