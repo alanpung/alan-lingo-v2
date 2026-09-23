@@ -7,7 +7,7 @@ import { MemoryEditor } from "./memory-editor";
 import { ChangePasswordForm } from "./change-password-form";
 import { VoiceSelector } from "./voice-selector";
 import type { PromptWithOverride } from "@/lib/actions/prompts";
-import type { VoiceSettingsData } from "@/lib/actions/tts-settings";
+import type { VoiceSettingsData } from "@/lib/tts-config";
 
 export function SettingsView({
   isAdmin = false,

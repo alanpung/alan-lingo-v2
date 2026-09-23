@@ -5,6 +5,8 @@ import {
   AVAILABLE_VOICES,
   VOICE_STYLE_PRESETS,
   type VoiceSettingsData,
+} from "@/lib/tts-config";
+import {
   saveVoiceSettings,
   previewVoiceAudio,
 } from "@/lib/actions/tts-settings";
