@@ -86,6 +86,7 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
         await audioRef.current.play();
       }
     } catch (err: unknown) {
+      console.error("Test voice error:", err);
       setPreviewError(err instanceof Error ? err.message : "Failed to play voice sample");
     } finally {
       setIsPreviewing(false);

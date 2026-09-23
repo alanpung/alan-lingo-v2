@@ -12,8 +12,49 @@ import {
 } from "@/lib/tts-config";
 
 export async function getVoiceSettings(): Promise<VoiceSettingsData> {
-  const session = await getSession();
-  if (!session) {
+  try {
+    const session = await getSession();
+    if (!session?.user?.email) {
+      return {
+        voiceName: "Kore",
+        presetId: "default",
+        customInstructions: VOICE_STYLE_PRESETS[0].template,
+        isAdmin: false,
+      };
+    }
+
+    const isAdmin = isAdminEmail(session.user.email);
+    if (!isAdmin) {
+      return {
+        voiceName: "Kore",
+        presetId: "default",
+        customInstructions: VOICE_STYLE_PRESETS[0].template,
+        isAdmin: false,
+      };
+    }
+
+    const records = await db
+      .select()
+      .from(userMemory)
+      .where(eq(userMemory.userId, session.user.id));
+
+    const map = new Map(records.map((r) => [r.key, r.value]));
+
+    const voiceName = map.get("tts:voice") || "Kore";
+    const presetId = map.get("tts:preset") || "default";
+    const customInstructions =
+      map.get("prompt:tts-instructions") ||
+      VOICE_STYLE_PRESETS.find((p) => p.id === presetId)?.template ||
+      VOICE_STYLE_PRESETS[0].template;
+
+    return {
+      voiceName,
+      presetId,
+      customInstructions,
+      isAdmin,
+    };
+  } catch (err) {
+    console.error("Failed to load voice settings:", err);
     return {
       voiceName: "Kore",
       presetId: "default",
@@ -21,37 +62,6 @@ export async function getVoiceSettings(): Promise<VoiceSettingsData> {
       isAdmin: false,
     };
   }
-
-  const isAdmin = isAdminEmail(session.user.email);
-  if (!isAdmin) {
-    return {
-      voiceName: "Kore",
-      presetId: "default",
-      customInstructions: VOICE_STYLE_PRESETS[0].template,
-      isAdmin: false,
-    };
-  }
-
-  const records = await db
-    .select()
-    .from(userMemory)
-    .where(eq(userMemory.userId, session.user.id));
-
-  const map = new Map(records.map((r) => [r.key, r.value]));
-
-  const voiceName = map.get("tts:voice") || "Kore";
-  const presetId = map.get("tts:preset") || "default";
-  const customInstructions =
-    map.get("prompt:tts-instructions") ||
-    VOICE_STYLE_PRESETS.find((p) => p.id === presetId)?.template ||
-    VOICE_STYLE_PRESETS[0].template;
-
-  return {
-    voiceName,
-    presetId,
-    customInstructions,
-    isAdmin,
-  };
 }
 
 export async function saveVoiceSettings({
@@ -125,7 +135,7 @@ export async function previewVoiceAudio({
   instructions?: string;
   sampleText?: string;
   language?: string;
-}): Promise<{ url: string }> {
+}): Promise<{ url: string; audioBase64: string }> {
   const session = await requireSession();
   if (!isAdminEmail(session.user.email)) {
     throw new Error("Unauthorized");
@@ -141,5 +151,11 @@ export async function previewVoiceAudio({
     skipCache: true,
   });
 
-  return { url: result.url };
+  const base64 = result.buffer.toString("base64");
+  const dataUrl = `data:audio/wav;base64,${base64}`;
+
+  return {
+    url: dataUrl,
+    audioBase64: base64,
+  };
 }

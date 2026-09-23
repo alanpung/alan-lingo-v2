@@ -10,11 +10,21 @@ export default async function SettingsPage() {
   const session = await requireSession();
   const isAdmin = isAdminEmail(session.user.email);
 
-  const [prompts, memory, voiceSettings] = await Promise.all([
-    isAdmin ? getPrompts() : Promise.resolve([]),
-    isAdmin ? getMemory() : Promise.resolve(""),
-    isAdmin ? getVoiceSettings() : Promise.resolve(null),
-  ]);
+  let prompts = [];
+  let memory = "";
+  let voiceSettings = null;
+
+  if (isAdmin) {
+    const results = await Promise.allSettled([
+      getPrompts(),
+      getMemory(),
+      getVoiceSettings(),
+    ]);
+
+    if (results[0].status === "fulfilled") prompts = results[0].value;
+    if (results[1].status === "fulfilled") memory = results[1].value;
+    if (results[2].status === "fulfilled") voiceSettings = results[2].value;
+  }
 
   return (
     <SettingsView
