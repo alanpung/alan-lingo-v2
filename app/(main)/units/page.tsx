@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import {
@@ -58,6 +59,8 @@ export default async function LearnPage() {
     }
   }
 
+  const isEmptyLibrary = ownedCourses.length === 0 && standaloneUnits.length === 0 && !isAdmin;
+
   return (
     <div className="mx-auto w-full max-w-2xl">
       <div className="mb-6 text-center">
@@ -67,8 +70,28 @@ export default async function LearnPage() {
         targetLanguage={targetLang ?? undefined}
         isAdmin={isAdmin}
       />
-      <MyCourses courses={ownedCourses} isAdmin={isAdmin} />
-      <StandaloneUnits units={standaloneUnits} isAdmin={isAdmin} />
+      {isEmptyLibrary ? (
+        <div className="rounded-2xl border-2 border-dashed border-lingo-border bg-white p-8 text-center shadow-sm">
+          <div className="text-4xl mb-3">📚</div>
+          <h2 className="text-lg font-black text-lingo-text mb-1">
+            Your library is empty
+          </h2>
+          <p className="text-sm text-lingo-text-light mb-5">
+            Browse public courses and standalone units to start practicing!
+          </p>
+          <Link
+            href="/units/browse"
+            className="inline-flex items-center gap-2 rounded-xl border-2 border-lingo-green bg-lingo-green px-5 py-2.5 text-sm font-black text-white shadow-[0_2px_0_0] shadow-green-700 transition-all hover:bg-lingo-green/90 active:translate-y-[1px]"
+          >
+            <span>🔍</span> Browse Courses & Units
+          </Link>
+        </div>
+      ) : (
+        <>
+          <MyCourses courses={ownedCourses} isAdmin={isAdmin} />
+          <StandaloneUnits units={standaloneUnits} isAdmin={isAdmin} />
+        </>
+      )}
     </div>
   );
 }

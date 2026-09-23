@@ -35,7 +35,7 @@ export function StandaloneUnits({ units, isAdmin }: StandaloneUnitsProps) {
   return (
     <section className="mb-8">
       <h2 className="mb-3 text-lg font-bold text-lingo-text">
-        {isAdmin ? "Standalone Units" : "Units in My Library"}
+        Standalone Units
       </h2>
       <div className="grid min-w-0 gap-3">
         {units.map((unit, i) => (

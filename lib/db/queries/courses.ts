@@ -283,9 +283,12 @@ export async function getStandaloneUnits(
 
   const libraryCondition =
     libraryUnitIds.size > 0
-      ? or(
-          and(eq(unit.createdBy, userId), isNull(unit.courseId)),
-          inArray(unit.id, [...libraryUnitIds])
+      ? and(
+          isNull(unit.courseId),
+          or(
+            eq(unit.createdBy, userId),
+            inArray(unit.id, [...libraryUnitIds])
+          )
         )
       : and(eq(unit.createdBy, userId), isNull(unit.courseId));
 
