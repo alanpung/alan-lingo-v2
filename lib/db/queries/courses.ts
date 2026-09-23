@@ -31,6 +31,36 @@ import type {
 import { getUnitLessonsSafe } from "@/lib/content/loader";
 import { getUnitQuestionType } from "@/lib/content/question-types";
 
+/**
+ * Sorts units naturally by title (e.g. Unit 1 < Unit 2 < Unit 3 < Unit 4 < Unit 10)
+ * and falls back to creation date (earlier first).
+ */
+export function naturalSortUnits<
+  T extends { title?: string | null; createdAt?: Date | string | null }
+>(units: T[]): T[] {
+  const collator = new Intl.Collator(undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+  return [...units].sort((a, b) => {
+    const titleA = (a.title ?? "").trim();
+    const titleB = (b.title ?? "").trim();
+
+    const cmp = collator.compare(titleA, titleB);
+    if (cmp !== 0) return cmp;
+
+    if (a.createdAt && b.createdAt) {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
+        return timeA - timeB;
+      }
+    }
+    return 0;
+  });
+}
+
 interface CourseFilters {
   sourceLanguage?: string;
   targetLanguage?: string;
@@ -182,6 +212,23 @@ export async function getCourseWithContent(
     .from(unit)
     .where(and(...unitConditions));
 
+  const mappedUnits = units.map((u) => {
+    const safeResult = getUnitLessonsSafe(u.markdown ?? "");
+    const lessons = safeResult?.lessons ?? [];
+    return {
+      id: u.id,
+      title: u.title ?? "Untitled",
+      description: u.description ?? "",
+      icon: u.icon ?? "📘",
+      color: u.color ?? "#58CC02",
+      lessons,
+      parseError: safeResult?.parseError ?? false,
+      createdBy: u.createdBy ?? null,
+      createdAt: u.createdAt ?? null,
+      questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
+    };
+  });
+
   return {
     id: courseRow.id,
     title: courseRow.title,
@@ -190,21 +237,7 @@ export async function getCourseWithContent(
     level: courseRow.level,
     visibility: courseRow.visibility,
     createdBy: courseRow.createdBy,
-    units: units.map((u) => {
-      const safeResult = getUnitLessonsSafe(u.markdown ?? "");
-      const lessons = safeResult?.lessons ?? [];
-      return {
-        id: u.id,
-        title: u.title ?? "Untitled",
-        description: u.description ?? "",
-        icon: u.icon ?? "📘",
-        color: u.color ?? "#58CC02",
-        lessons,
-        parseError: safeResult?.parseError ?? false,
-        createdBy: u.createdBy ?? null,
-        questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
-      };
-    }),
+    units: naturalSortUnits(mappedUnits),
   };
 }
 
@@ -270,6 +303,7 @@ export async function getStandaloneUnits(
       visibility: unit.visibility,
       createdBy: unit.createdBy,
       creatorName: user.name,
+      createdAt: unit.createdAt,
     })
     .from(unit)
     .leftJoin(user, eq(unit.createdBy, user.id))
@@ -302,7 +336,7 @@ export async function getStandaloneUnits(
     console.warn("lessonCompletion query failed, continuing:", err);
   }
 
-  return rows.map((u) => {
+  const mapped = rows.map((u) => {
     const safeResult = getUnitLessonsSafe(u.markdown ?? "");
     const lessons = safeResult?.lessons ?? [];
     return {
@@ -321,9 +355,12 @@ export async function getStandaloneUnits(
       isOwner: u.createdBy === userId,
       isInLibrary: libraryUnitIds.has(u.id),
       parseError: safeResult?.parseError ?? false,
+      createdAt: u.createdAt ?? null,
       questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
     };
   });
+
+  return naturalSortUnits(mapped);
 }
 
 /** Public units that users can browse and add to their library. */
@@ -356,6 +393,7 @@ export async function getBrowsableUnits(
       createdBy: unit.createdBy,
       creatorName: user.name,
       courseVisibility: course.visibility,
+      createdAt: unit.createdAt,
     })
     .from(unit)
     .leftJoin(user, eq(unit.createdBy, user.id))
@@ -369,7 +407,7 @@ export async function getBrowsableUnits(
 
   if (rows.length === 0) return [];
 
-  return rows.map((u) => {
+  const mapped = rows.map((u) => {
     const safeResult = getUnitLessonsSafe(u.markdown ?? "");
     const lessons = safeResult?.lessons ?? [];
     return {
@@ -388,9 +426,12 @@ export async function getBrowsableUnits(
       isOwner: u.createdBy === userId,
       isInLibrary: libraryUnitIds.has(u.id),
       parseError: safeResult?.parseError ?? false,
+      createdAt: u.createdAt ?? null,
       questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
     };
   });
+
+  return naturalSortUnits(mapped);
 }
 
 export async function getUnitForEdit(
@@ -598,17 +639,19 @@ export async function getCourseForManagement(
     level: courseRow.level,
     visibility: courseRow.visibility,
     createdBy: courseRow.createdBy,
-    units: units.map((u) => {
-      const { lessons } = getUnitLessonsSafe(u.markdown ?? "");
-      return {
-        id: u.id,
-        title: u.title,
-        icon: u.icon,
-        visibility: u.visibility,
-        lessonCount: lessons.length,
-        questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
-      };
-    }),
+    units: naturalSortUnits(
+      units.map((u) => {
+        const { lessons } = getUnitLessonsSafe(u.markdown ?? "");
+        return {
+          id: u.id,
+          title: u.title,
+          icon: u.icon,
+          visibility: u.visibility,
+          lessonCount: lessons.length,
+          questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
+        };
+      })
+    ),
   };
 }
 
@@ -628,7 +671,7 @@ export async function getUserOwnedStandaloneUnits(
     .from(unit)
     .where(and(eq(unit.createdBy, userId), isNull(unit.courseId)));
 
-  return rows.map((u) => {
+  const mapped = rows.map((u) => {
     const { lessons } = getUnitLessonsSafe(u.markdown ?? "");
     return {
       id: u.id,
@@ -640,4 +683,6 @@ export async function getUserOwnedStandaloneUnits(
       questionType: getUnitQuestionType({ lessons, markdown: u.markdown }),
     };
   });
+
+  return naturalSortUnits(mapped);
 }
