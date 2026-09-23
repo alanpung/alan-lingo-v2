@@ -7,6 +7,7 @@ import type { OwnedCourseInfo } from "@/lib/content/types";
 import type { AvailableUnitForCourse, CourseManagementInfo } from "@/lib/content/types";
 import { getLanguageName } from "@/lib/languages";
 import { makeCoursePublic, makeCoursePrivate, deleteCourse, updateCourseTitle } from "@/lib/actions/units";
+import { removeCourseFromLibrary } from "@/lib/actions/library";
 import { CreateCourseForm } from "./create-course-form";
 import { CourseManager } from "./course-manager";
 import { CopyLinkButton } from "@/components/ui/copy-link-button";
@@ -87,14 +88,31 @@ function OwnedCourseCard({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeAction, setActiveAction] = useState<
-    null | "make-public" | "make-private" | "delete"
+    null | "make-public" | "make-private" | "delete" | "remove"
   >(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(course.title);
   const [titleError, setTitleError] = useState<string | null>(null);
   const isPublic = course.visibility === "public";
-  const isLocked = isPublic && !isAdmin;
+  const isOwner = course.isOwner ?? true;
+  const isLocked = !isOwner || (isPublic && !isAdmin);
   const isActionPending = isPending || activeAction !== null;
+
+  function handleRemoveFromLibrary() {
+    setActiveAction("remove");
+    startTransition(async () => {
+      try {
+        const result = await removeCourseFromLibrary(course.id);
+        if (result.success) {
+          router.refresh();
+        } else {
+          alert(result.error);
+        }
+      } finally {
+        setActiveAction(null);
+      }
+    });
+  }
 
   function handleSaveTitle(e: React.FormEvent) {
     e.preventDefault();
@@ -413,7 +431,27 @@ function OwnedCourseCard({
           </button>
         )}
 
-        {isLocked && (
+        {!isOwner && (
+          <button
+            onClick={handleRemoveFromLibrary}
+            disabled={isActionPending}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+          >
+            {activeAction === "remove" ? (
+              <>
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/30 border-t-red-500" />
+                Removing...
+              </>
+            ) : (
+              <>
+                <span>✕</span>
+                Remove from Library
+              </>
+            )}
+          </button>
+        )}
+
+        {isOwner && isLocked && (
           <span className="text-xs text-lingo-text-light italic">
             Public — read-only
           </span>

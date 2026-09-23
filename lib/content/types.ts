@@ -158,6 +158,9 @@ export interface CourseListItem {
   level: string;
   unitCount: number;
   lessonCount: number;
+  createdBy?: string | null;
+  isOwner?: boolean;
+  isInLibrary?: boolean;
 }
 
 export interface StandaloneUnitInfo {
@@ -205,6 +208,9 @@ export interface OwnedCourseInfo {
   lessonCount: number;
   completedLessons: number;
   createdAt: Date;
+  createdBy?: string | null;
+  isOwner?: boolean;
+  isInLibrary?: boolean;
 }
 
 export interface CourseManagementInfo {

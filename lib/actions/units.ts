@@ -184,6 +184,43 @@ export async function fetchCourseManagementData(courseId: string): Promise<{ suc
   return { success: true, course: courseData, availableUnits: await getUserOwnedStandaloneUnits(session.user.id) };
 }
 
+export async function updateCourseTitle(
+  courseId: string,
+  newTitle: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const session = await requireSession();
+  const admin = isAdminEmail(session.user.email);
+  const trimmed = newTitle.trim();
+  if (!trimmed) {
+    return { success: false, error: "Title cannot be empty" };
+  }
+
+  const [existing] = await db
+    .select({ createdBy: course.createdBy, visibility: course.visibility })
+    .from(course)
+    .where(eq(course.id, courseId));
+
+  if (!existing) return { success: false, error: "Course not found" };
+  if (existing.createdBy !== session.user.id && !admin) {
+    return { success: false, error: "You do not own this course" };
+  }
+  if (existing.visibility === "public" && !admin) {
+    return {
+      success: false,
+      error:
+        "This course is public and can no longer be modified. Only admins can make changes to public content.",
+    };
+  }
+
+  await db
+    .update(course)
+    .set({ title: trimmed, updatedAt: new Date() })
+    .where(eq(course.id, courseId));
+
+  revalidateUnitPages(courseId);
+  return { success: true };
+}
+
 export async function createManualUnit(data: { title: string; targetLanguage: string; sourceLanguage?: string; level?: string; courseId?: string }): Promise<{ success: true; unitId: string } | { success: false; error: string }> {
   const session = await requireSession();
   if (!isAdminEmail(session.user.email)) return { success: false, error: "Only the site owner can create units" };

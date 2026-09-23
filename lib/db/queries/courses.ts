@@ -5,6 +5,7 @@ import {
   user,
   lessonCompletion,
   userUnitLibrary,
+  userCourseEnrollment,
 } from "@/lib/db/schema";
 import {
   eq,
@@ -75,12 +76,13 @@ export async function listCourses(
       sourceLanguage: course.sourceLanguage,
       targetLanguage: course.targetLanguage,
       level: course.level,
+      createdBy: course.createdBy,
       unitCount: countDistinct(unit.id),
     })
     .from(course)
     .leftJoin(unit, unitJoinCondition)
     .where(and(...conditions))
-    .groupBy(course.id)
+    .groupBy(course.id, course.createdBy)
     .orderBy(course.title);
 
   return rows.map((r) => ({
@@ -124,9 +126,24 @@ export async function listCoursesWithLessonCounts(
     lessonCountByCourse.set(u.courseId, prev + (lessons?.length ?? 0));
   }
 
+  let enrolledCourseIds = new Set<string>();
+  if (userId) {
+    try {
+      const enrollments = await db
+        .select({ courseId: userCourseEnrollment.courseId })
+        .from(userCourseEnrollment)
+        .where(eq(userCourseEnrollment.userId, userId));
+      enrolledCourseIds = new Set(enrollments.map((e) => e.courseId));
+    } catch (err) {
+      console.warn("listCoursesWithLessonCounts: enrollment query failed:", err);
+    }
+  }
+
   return courses.map((c) => ({
     ...c,
     lessonCount: lessonCountByCourse.get(c.id) ?? 0,
+    isOwner: userId ? c.createdBy === userId : false,
+    isInLibrary: enrolledCourseIds.has(c.id),
   }));
 }
 
@@ -438,6 +455,25 @@ export async function getUnitWithContent(
 export async function getUserOwnedCourses(
   userId: string
 ): Promise<OwnedCourseInfo[]> {
+  let enrolledCourseIds: string[] = [];
+  try {
+    const enrollments = await db
+      .select({ courseId: userCourseEnrollment.courseId })
+      .from(userCourseEnrollment)
+      .where(eq(userCourseEnrollment.userId, userId));
+    enrolledCourseIds = enrollments.map((e) => e.courseId);
+  } catch (err) {
+    console.warn("getUserOwnedCourses enrollment query failed:", err);
+  }
+
+  const courseCondition =
+    enrolledCourseIds.length > 0
+      ? or(
+          eq(course.createdBy, userId),
+          inArray(course.id, enrolledCourseIds)
+        )
+      : eq(course.createdBy, userId);
+
   const rows = await db
     .select({
       id: course.id,
@@ -446,13 +482,14 @@ export async function getUserOwnedCourses(
       targetLanguage: course.targetLanguage,
       level: course.level,
       visibility: course.visibility,
+      createdBy: course.createdBy,
       createdAt: course.createdAt,
       unitCount: countDistinct(unit.id),
     })
     .from(course)
     .leftJoin(unit, eq(unit.courseId, course.id))
-    .where(eq(course.createdBy, userId))
-    .groupBy(course.id)
+    .where(courseCondition)
+    .groupBy(course.id, course.createdBy)
     .orderBy(course.createdAt);
 
   if (rows.length === 0) return [];
@@ -509,6 +546,8 @@ export async function getUserOwnedCourses(
     unitCount: Number(r.unitCount),
     lessonCount: lessonCountMap.get(r.id) ?? 0,
     completedLessons: completionMap.get(r.id) ?? 0,
+    isOwner: r.createdBy === userId,
+    isInLibrary: true,
   }));
 }
 

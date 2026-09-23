@@ -68,7 +68,7 @@ export default async function LearnPage() {
         isAdmin={isAdmin}
       />
       <StandaloneUnits units={standaloneUnits} isAdmin={isAdmin} />
-      {isAdmin && <MyCourses courses={ownedCourses} isAdmin={isAdmin} />}
+      <MyCourses courses={ownedCourses} isAdmin={isAdmin} />
     </div>
   );
 }
