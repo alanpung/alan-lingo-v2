@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { userMemory } from "@/lib/db/schema";
 import { and, eq, like } from "drizzle-orm";
-import { requireSession } from "@/lib/auth-server";
+import { requireSession, getSession } from "@/lib/auth-server";
 import { isAdminEmail } from "@/lib/ai/models";
 import { PROMPT_DEFINITIONS, PROMPTS_BY_ID } from "@/lib/prompts";
 
@@ -17,27 +17,32 @@ export type PromptWithOverride = {
 };
 
 export async function getPrompts(): Promise<PromptWithOverride[]> {
-  const session = await requireSession();
-  if (!isAdminEmail(session.user.email)) return [];
+  try {
+    const session = await getSession();
+    if (!session || !isAdminEmail(session.user.email)) return [];
 
-  const overrides = await db
-    .select()
-    .from(userMemory)
-    .where(
-      and(
-        eq(userMemory.userId, session.user.id),
-        like(userMemory.key, "prompt:%"),
-      ),
+    const overrides = await db
+      .select()
+      .from(userMemory)
+      .where(
+        and(
+          eq(userMemory.userId, session.user.id),
+          like(userMemory.key, "prompt:%"),
+        ),
+      );
+
+    const overrideMap = new Map(
+      overrides.map((o) => [o.key.replace("prompt:", ""), o.value]),
     );
 
-  const overrideMap = new Map(
-    overrides.map((o) => [o.key.replace("prompt:", ""), o.value]),
-  );
-
-  return PROMPT_DEFINITIONS.map((def) => ({
-    ...def,
-    customTemplate: overrideMap.get(def.id) ?? null,
-  }));
+    return PROMPT_DEFINITIONS.map((def) => ({
+      ...def,
+      customTemplate: overrideMap.get(def.id) ?? null,
+    }));
+  } catch (err) {
+    console.error("getPrompts error:", err);
+    return [];
+  }
 }
 
 export async function savePrompt(id: string, value: string) {
@@ -76,18 +81,23 @@ export async function resetPrompt(id: string) {
 }
 
 export async function getMemory(): Promise<string> {
-  const session = await requireSession();
-  if (!isAdminEmail(session.user.email)) return "";
+  try {
+    const session = await getSession();
+    if (!session || !isAdminEmail(session.user.email)) return "";
 
-  const [row] = await db
-    .select()
-    .from(userMemory)
-    .where(
-      and(eq(userMemory.userId, session.user.id), eq(userMemory.key, "memory")),
-    )
-    .limit(1);
+    const [row] = await db
+      .select()
+      .from(userMemory)
+      .where(
+        and(eq(userMemory.userId, session.user.id), eq(userMemory.key, "memory")),
+      )
+      .limit(1);
 
-  return row?.value ?? "";
+    return row?.value ?? "";
+  } catch (err) {
+    console.error("getMemory error:", err);
+    return "";
+  }
 }
 
 export async function saveMemory(value: string) {
@@ -111,16 +121,20 @@ export async function getUserPromptTemplate(
   const def = PROMPTS_BY_ID[promptId];
   if (!def) throw new Error(`Unknown prompt ID: ${promptId}`);
 
-  const [override] = await db
-    .select()
-    .from(userMemory)
-    .where(
-      and(
-        eq(userMemory.userId, userId),
-        eq(userMemory.key, `prompt:${promptId}`),
-      ),
-    )
-    .limit(1);
+  try {
+    const [override] = await db
+      .select()
+      .from(userMemory)
+      .where(
+        and(
+          eq(userMemory.userId, userId),
+          eq(userMemory.key, `prompt:${promptId}`),
+        ),
+      )
+      .limit(1);
 
-  return override?.value ?? def.defaultTemplate;
+    return override?.value ?? def.defaultTemplate;
+  } catch {
+    return def.defaultTemplate;
+  }
 }
