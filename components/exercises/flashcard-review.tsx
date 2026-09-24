@@ -27,6 +27,58 @@ function cleanTextForTTS(raw: string): string {
     .trim();
 }
 
+function parseFlashcardContent(exercise: FlashcardReviewExercise): {
+  meaning: string;
+  translation: string;
+} {
+  let meaning = exercise.meaning?.trim() || "";
+  let translation = exercise.translation?.trim() || "";
+
+  if (!meaning && !translation && exercise.back) {
+    const rawBack = exercise.back.replace(/\\n/g, "\n").trim();
+    const lines = rawBack.split("\n").map((l) => l.trim()).filter(Boolean);
+
+    let parsedMeaning = "";
+    let parsedTranslation = "";
+
+    for (const line of lines) {
+      if (/^(meaning|definition|含义|意思)[:：]\s*/i.test(line)) {
+        parsedMeaning = line.replace(/^(meaning|definition|含义|意思)[:：]\s*/i, "");
+      } else if (/^(translation|chinese|中文|翻译)[:：]\s*/i.test(line)) {
+        parsedTranslation = line.replace(/^(translation|chinese|中文|翻译)[:：]\s*/i, "");
+      }
+    }
+
+    if (!parsedMeaning && !parsedTranslation) {
+      if (lines.length >= 2) {
+        if (/[\u4e00-\u9fa5]/.test(lines[0]) && !/[\u4e00-\u9fa5]/.test(lines[1])) {
+          parsedTranslation = lines[0];
+          parsedMeaning = lines[1];
+        } else {
+          parsedMeaning = lines[0];
+          parsedTranslation = lines[1];
+        }
+      } else if (lines.length === 1) {
+        const single = lines[0];
+        if (/[\u4e00-\u9fa5]/.test(single)) {
+          parsedTranslation = single;
+        } else {
+          parsedMeaning = single;
+        }
+      }
+    }
+
+    meaning = parsedMeaning || meaning;
+    translation = parsedTranslation || translation;
+
+    if (!meaning && !translation && rawBack) {
+      meaning = rawBack;
+    }
+  }
+
+  return { meaning, translation };
+}
+
 export function FlashcardReview({
   exercise,
   language,
@@ -42,10 +94,20 @@ export function FlashcardReview({
 }) {
   const [revealed, setRevealed] = useState(false);
   const [rated, setRated] = useState(false);
-  const { play, stop, loading: audioLoading } = useAudio();
+  const { play, stop, prefetch, loading: audioLoading } = useAudio();
+
+  const { meaning, translation } = parseFlashcardContent(exercise);
 
   const frontTTS = cleanTextForTTS(exercise.front);
-  const backTTS = cleanTextForTTS(exercise.back);
+  const backTTS = cleanTextForTTS(exercise.back || meaning);
+
+  // Prefetch both sides of the flashcard immediately
+  useEffect(() => {
+    const toFetch: string[] = [];
+    if (frontTTS && !exercise.noAudio?.includes("front")) toFetch.push(frontTTS);
+    if (backTTS && !exercise.noAudio?.includes("back")) toFetch.push(backTTS);
+    if (toFetch.length > 0) prefetch(toFetch, language);
+  }, [frontTTS, backTTS, exercise.noAudio, language, prefetch]);
 
   // Auto-play front audio when the flashcard is displayed
   useEffect(() => {
@@ -130,8 +192,8 @@ export function FlashcardReview({
           </div>
         </div>
 
-        {/* Front Content */}
-        <div className="prose prose-xl font-black text-lingo-text [&>p]:m-0 my-3">
+        {/* Front Content (Word) */}
+        <div className="prose prose-2xl font-black text-lingo-text [&>p]:m-0 my-3 text-center">
           <Markdown remarkPlugins={[remarkBreaks]}>
             {exercise.front.replace(/\\n/g, "\n")}
           </Markdown>
@@ -150,25 +212,40 @@ export function FlashcardReview({
 
         {/* Revealed Back Content */}
         {revealed && (
-          <div className="mt-6 pt-5 border-t-2 border-lingo-border text-left">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-lingo-text-light/70">
-                Meaning / Translation
-              </span>
-              {backTTS && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-semibold text-lingo-text-light">
-                    Audio
+          <div className="mt-6 pt-5 border-t-2 border-lingo-border space-y-3.5 text-left">
+            {/* Meaning Row directly below the word */}
+            {meaning && (
+              <div className="rounded-xl bg-lingo-bg/60 p-3.5 border border-lingo-border/60">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-lingo-blue">
+                    Meaning
                   </span>
-                  <ReplayButton onPlay={() => handlePlayBack()} />
+                  {backTTS && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-semibold text-lingo-text-light">
+                        Audio
+                      </span>
+                      <ReplayButton onPlay={() => handlePlayBack()} />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="prose prose-lg font-bold text-lingo-text [&>p]:m-0">
-              <Markdown remarkPlugins={[remarkBreaks]}>
-                {exercise.back.replace(/\\n/g, "\n")}
-              </Markdown>
-            </div>
+                <div className="prose prose-base font-bold text-lingo-text [&>p]:m-0">
+                  <Markdown remarkPlugins={[remarkBreaks]}>{meaning}</Markdown>
+                </div>
+              </div>
+            )}
+
+            {/* Translation Row in Chinese in another row below meaning */}
+            {translation && (
+              <div className="rounded-xl bg-lingo-card p-3.5 border border-lingo-border/60">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-lingo-green-dark mb-1">
+                  Translation (中文)
+                </div>
+                <div className="prose prose-base font-bold text-lingo-text [&>p]:m-0">
+                  <Markdown remarkPlugins={[remarkBreaks]}>{translation}</Markdown>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

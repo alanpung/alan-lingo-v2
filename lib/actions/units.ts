@@ -273,7 +273,7 @@ export async function createManualUnit(data: {
       break;
     case "flashcard-review":
       icon = "🎴";
-      exerciseBlock = `[flashcard-review]\nfront: "Word or prompt"\nback: "Meaning or translation"\nsrsWords: "sample"`;
+      exerciseBlock = `[flashcard-review]\nfront: "Word or prompt"\nmeaning: "English meaning or definition"\ntranslation: "中文翻译"\nsrsWords: "sample"`;
       break;
     case "translation":
       icon = "🌐";

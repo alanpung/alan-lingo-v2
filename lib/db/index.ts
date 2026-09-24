@@ -25,3 +25,30 @@ export const client = postgres(connectionString, {
 });
 
 export const db = drizzle(client, { schema });
+
+// Cached probe to quickly skip DB queries if database is unreachable (e.g. local dev without Postgres)
+let dbStatusCached: boolean | null = null;
+let dbStatusCheckedAt = 0;
+
+export async function isDbAvailable(): Promise<boolean> {
+  const now = Date.now();
+  // Cache check for 10 seconds if offline, 60 seconds if online
+  if (dbStatusCached !== null) {
+    const ttl = dbStatusCached ? 60000 : 10000;
+    if (now - dbStatusCheckedAt < ttl) return dbStatusCached;
+  }
+
+  try {
+    const checkPromise = client`SELECT 1`;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("DB probe timeout")), 800)
+    );
+    await Promise.race([checkPromise, timeoutPromise]);
+    dbStatusCached = true;
+  } catch {
+    dbStatusCached = false;
+  }
+  dbStatusCheckedAt = now;
+  return dbStatusCached;
+}
+

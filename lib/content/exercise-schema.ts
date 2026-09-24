@@ -118,7 +118,9 @@ export const freeTextSchema = z.object({
 export const flashcardReviewSchema = z.object({
   type: z.literal("flashcard-review"),
   front: z.string().describe("Front of the card (markdown)"),
-  back: z.string().describe("Back of the card (markdown)"),
+  back: z.string().optional().describe("Back of the card (markdown)"),
+  meaning: z.string().optional().describe("Meaning of the word (e.g. English definition or meaning)"),
+  translation: z.string().optional().describe("Translation in Chinese"),
   noAudio,
   srsWords,
 });

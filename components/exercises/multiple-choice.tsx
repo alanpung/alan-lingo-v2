@@ -31,9 +31,15 @@ function shuffleWithSeed<T>(arr: T[], seed: number): T[] {
 export function MultipleChoice({ exercise, onResult, onContinue, language, autoplayAudio = true }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   const { status, checkAnswer } = useExercise();
-  const { play, stop, loading: audioLoading } = useAudio();
+  const { play, stop, prefetch, loading: audioLoading } = useAudio();
 
   const ttsText = exercise.text.replace("___", exercise.choices[exercise.correctIndex]);
+
+  // Prefetch full sentence and choices
+  useEffect(() => {
+    const toFetch = [ttsText, ...exercise.choices];
+    prefetch(toFetch, language);
+  }, [ttsText, exercise.choices, language, prefetch]);
 
   useEffect(() => {
     if (autoplayAudio && !exercise.noAudio?.includes("text")) play(ttsText, language);

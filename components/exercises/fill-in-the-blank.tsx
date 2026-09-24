@@ -22,11 +22,17 @@ export function FillInTheBlank({ exercise, onResult, onContinue, language, autop
   const [input, setInput] = useState("");
   const [correctedMarkdown, setCorrectedMarkdown] = useState<string>();
   const { status, checkAnswer } = useExercise();
-  const { play, stop, loading: audioLoading } = useAudio();
+  const { play, stop, prefetch, loading: audioLoading } = useAudio();
+
+  const fullSentence = exercise.sentence.replace("___", exercise.blank);
+
+  useEffect(() => {
+    prefetch([fullSentence], language);
+  }, [fullSentence, language, prefetch]);
 
   useEffect(() => {
     if (autoplayAudio && !exercise.noAudio?.includes("sentence"))
-      play(exercise.sentence.replace("___", exercise.blank), language);
+      play(fullSentence, language);
     return stop;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

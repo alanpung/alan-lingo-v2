@@ -23,7 +23,7 @@ export function Translation({ exercise, onResult, onContinue, language, autoplay
   const [input, setInput] = useState("");
   const [correctedMarkdown, setCorrectedMarkdown] = useState<string>();
   const { status, checkAnswer } = useExercise();
-  const { play, stop, loading: audioLoading } = useAudio();
+  const { play, stop, prefetch, loading: audioLoading } = useAudio();
 
   const sentenceLang = useMemo(
     () => detectTextLanguage(exercise.sentence, { targetLanguage: language }),
@@ -37,6 +37,12 @@ export function Translation({ exercise, onResult, onContinue, language, autoplay
     () => detectTextLanguage(exercise.answer, { targetLanguage: language }),
     [exercise.answer, language]
   );
+
+  // Prefetch sentence and answer audio
+  useEffect(() => {
+    const toFetch = [exercise.sentence, exercise.answer].filter(Boolean);
+    prefetch(toFetch, language);
+  }, [exercise.sentence, exercise.answer, language, prefetch]);
 
   useEffect(() => {
     if (autoplayAudio && !exercise.noAudio?.includes("sentence")) {

@@ -6,6 +6,9 @@ import { detectTextLanguage, getLanguageLocale } from "@/lib/language-detector";
 // In-memory URL cache to avoid redundant API calls
 const urlCache = new Map<string, string>();
 
+// In-flight request deduplication map to prevent redundant concurrent TTS requests
+const inFlightRequests = new Map<string, Promise<string>>();
+
 // In-memory decoded AudioBuffer cache for instant Web Audio playback
 const audioBufferCache = new Map<string, AudioBuffer>();
 
@@ -14,6 +17,18 @@ let sharedAudioContext: AudioContext | null = null;
 let currentSourceNode: AudioBufferSourceNode | null = null;
 let currentGainNode: GainNode | null = null;
 let pendingMobilePlayback: { text: string; language: string; playFn: () => void } | null = null;
+
+// Pre-warm browser speech synthesis voices so fallback is instant
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+  try {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      try {
+        window.speechSynthesis.getVoices();
+      } catch {}
+    };
+  } catch {}
+}
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -160,27 +175,40 @@ export function useAudio() {
   }, []);
 
   const fetchUrl = useCallback(async (text: string, language: string) => {
-    const key = `${language}:${text.toLowerCase()}`;
+    const key = `${language}:${text.toLowerCase().trim()}`;
     const cached = urlCache.get(key);
     if (cached) return cached;
 
-    const res = await fetch("/api/tts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, language }),
-    });
+    // Deduplicate identical requests that are already in flight
+    const pending = inFlightRequests.get(key);
+    if (pending) return pending;
 
-    if (!res.ok) {
-      throw new Error(`TTS API returned status ${res.status}`);
-    }
+    const requestPromise = (async () => {
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, language }),
+        });
 
-    const data = await res.json();
-    if (!data.url) {
-      throw new Error("No URL returned from TTS API");
-    }
+        if (!res.ok) {
+          throw new Error(`TTS API returned status ${res.status}`);
+        }
 
-    urlCache.set(key, data.url);
-    return data.url as string;
+        const data = await res.json();
+        if (!data.url) {
+          throw new Error("No URL returned from TTS API");
+        }
+
+        urlCache.set(key, data.url);
+        return data.url as string;
+      } finally {
+        inFlightRequests.delete(key);
+      }
+    })();
+
+    inFlightRequests.set(key, requestPromise);
+    return requestPromise;
   }, []);
 
   const playWithWebAudio = useCallback(
@@ -328,9 +356,23 @@ export function useAudio() {
 
   const prefetch = useCallback(
     (texts: string[], language: string) => {
-      texts.forEach((text) => {
-        const resolvedLang = detectTextLanguage(text, { targetLanguage: language });
-        fetchUrl(text, resolvedLang).catch(() => {});
+      texts.forEach(async (text) => {
+        if (!text || !text.trim()) return;
+        try {
+          const resolvedLang = detectTextLanguage(text, { targetLanguage: language });
+          const url = await fetchUrl(text, resolvedLang);
+          if (url && !audioBufferCache.has(url)) {
+            const audioCtx = getAudioContext();
+            if (audioCtx) {
+              const res = await fetch(url);
+              if (res.ok) {
+                const arrayBuffer = await res.arrayBuffer();
+                const buffer = await audioCtx.decodeAudioData(arrayBuffer);
+                audioBufferCache.set(url, buffer);
+              }
+            }
+          }
+        } catch {}
       });
     },
     [fetchUrl]

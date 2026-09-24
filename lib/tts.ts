@@ -7,7 +7,7 @@ import {
   langCodeToName,
 } from "@/lib/prompts";
 import { detectTextLanguage } from "@/lib/language-detector";
-import { db } from "@/lib/db";
+import { db, isDbAvailable } from "@/lib/db";
 import { userMemory, audioCache, user } from "@/lib/db/schema";
 import { eq, or } from "drizzle-orm";
 
@@ -278,6 +278,9 @@ export async function getPersistentCachedAudio(
   if (mem) return mem;
 
   try {
+    const dbUp = await isDbAvailable();
+    if (!dbUp) return null;
+
     const rows = await db
       .select()
       .from(audioCache)
@@ -350,65 +353,68 @@ export async function generateSpeech(
   // 1. If not explicitly provided, check database for user or owner/global preferences
   if (!selectedVoice || !customInstructions) {
     try {
-      // First check user's personal settings if provided
-      if (options?.userId) {
-        const records = await db
-          .select()
-          .from(userMemory)
-          .where(eq(userMemory.userId, options.userId));
-        const map = new Map(records.map((r) => [r.key, r.value]));
-        if (!selectedVoice && map.has("tts:voice")) {
-          selectedVoice = map.get("tts:voice");
-        }
-        if (!customInstructions && map.has("prompt:tts-instructions")) {
-          customInstructions = map.get("prompt:tts-instructions");
-        }
-      }
-
-      // 2. Load the Author's (alan.pung@gmail.com) exact voice settings so students always match the author
-      if (!selectedVoice || !customInstructions) {
-        try {
-          const authorRows = await db
-            .select({ key: userMemory.key, value: userMemory.value })
+      const dbUp = await isDbAvailable();
+      if (dbUp) {
+        // First check user's personal settings if provided
+        if (options?.userId) {
+          const records = await db
+            .select()
             .from(userMemory)
-            .innerJoin(user, eq(userMemory.userId, user.id))
-            .where(eq(user.email, "alan.pung@gmail.com"));
+            .where(eq(userMemory.userId, options.userId));
+          const map = new Map(records.map((r) => [r.key, r.value]));
+          if (!selectedVoice && map.has("tts:voice")) {
+            selectedVoice = map.get("tts:voice");
+          }
+          if (!customInstructions && map.has("prompt:tts-instructions")) {
+            customInstructions = map.get("prompt:tts-instructions");
+          }
+        }
 
-          const authorMap = new Map(authorRows.map((r) => [r.key, r.value]));
+        // 2. Load the Author's (alan.pung@gmail.com) exact voice settings so students always match the author
+        if (!selectedVoice || !customInstructions) {
+          try {
+            const authorRows = await db
+              .select({ key: userMemory.key, value: userMemory.value })
+              .from(userMemory)
+              .innerJoin(user, eq(userMemory.userId, user.id))
+              .where(eq(user.email, "alan.pung@gmail.com"));
+
+            const authorMap = new Map(authorRows.map((r) => [r.key, r.value]));
+            if (!selectedVoice) {
+              selectedVoice = authorMap.get("tts:voice") || authorMap.get("global:tts:voice");
+            }
+            if (!customInstructions) {
+              customInstructions =
+                authorMap.get("prompt:tts-instructions") ||
+                authorMap.get("global:prompt:tts-instructions");
+            }
+          } catch {
+            // Fallback if query fails
+          }
+        }
+
+        // 3. Fallback to any global setting in userMemory
+        if (!selectedVoice || !customInstructions) {
+          const globalRecords = await db
+            .select()
+            .from(userMemory)
+            .where(
+              or(
+                eq(userMemory.key, "global:tts:voice"),
+                eq(userMemory.key, "global:prompt:tts-instructions"),
+                eq(userMemory.key, "tts:voice"),
+                eq(userMemory.key, "prompt:tts-instructions")
+              )
+            );
+          const globalMap = new Map(globalRecords.map((r) => [r.key, r.value]));
           if (!selectedVoice) {
-            selectedVoice = authorMap.get("tts:voice") || authorMap.get("global:tts:voice");
+            selectedVoice = globalMap.get("global:tts:voice") || globalMap.get("tts:voice");
           }
           if (!customInstructions) {
             customInstructions =
-              authorMap.get("prompt:tts-instructions") ||
-              authorMap.get("global:prompt:tts-instructions");
+              globalMap.get("global:prompt:tts-instructions") ||
+              globalMap.get("prompt:tts-instructions");
           }
-        } catch {
-          // Fallback if query fails
-        }
-      }
-
-      // 3. Fallback to any global setting in userMemory
-      if (!selectedVoice || !customInstructions) {
-        const globalRecords = await db
-          .select()
-          .from(userMemory)
-          .where(
-            or(
-              eq(userMemory.key, "global:tts:voice"),
-              eq(userMemory.key, "global:prompt:tts-instructions"),
-              eq(userMemory.key, "tts:voice"),
-              eq(userMemory.key, "prompt:tts-instructions")
-            )
-          );
-        const globalMap = new Map(globalRecords.map((r) => [r.key, r.value]));
-        if (!selectedVoice) {
-          selectedVoice = globalMap.get("global:tts:voice") || globalMap.get("tts:voice");
-        }
-        if (!customInstructions) {
-          customInstructions =
-            globalMap.get("global:prompt:tts-instructions") ||
-            globalMap.get("prompt:tts-instructions");
         }
       }
     } catch {
@@ -494,17 +500,19 @@ export async function generateSpeech(
 
         // Persist permanently in database so Gemini is NEVER called again for this phrase
         try {
-          await db
-            .insert(audioCache)
-            .values({
-              text: cacheKey,
-              language: resolvedLang,
-              r2Key: `base64:wav:${wavBuffer.toString("base64")}`,
-            })
-            .onConflictDoUpdate({
-              target: [audioCache.text, audioCache.language],
-              set: { r2Key: `base64:wav:${wavBuffer.toString("base64")}` },
-            });
+          if (await isDbAvailable()) {
+            await db
+              .insert(audioCache)
+              .values({
+                text: cacheKey,
+                language: resolvedLang,
+                r2Key: `base64:wav:${wavBuffer.toString("base64")}`,
+              })
+              .onConflictDoUpdate({
+                target: [audioCache.text, audioCache.language],
+                set: { r2Key: `base64:wav:${wavBuffer.toString("base64")}` },
+              });
+          }
         } catch (dbErr) {
           console.warn("Could not write audio to database cache:", dbErr);
         }
@@ -543,17 +551,19 @@ export async function generateSpeech(
 
       // Persist permanently in database
       try {
-        await db
-          .insert(audioCache)
-          .values({
-            text: cacheKey,
-            language: resolvedLang,
-            r2Key: `base64:mp3:${mp3Buffer.toString("base64")}`,
-          })
-          .onConflictDoUpdate({
-            target: [audioCache.text, audioCache.language],
-            set: { r2Key: `base64:mp3:${mp3Buffer.toString("base64")}` },
-          });
+        if (await isDbAvailable()) {
+          await db
+            .insert(audioCache)
+            .values({
+              text: cacheKey,
+              language: resolvedLang,
+              r2Key: `base64:mp3:${mp3Buffer.toString("base64")}`,
+            })
+            .onConflictDoUpdate({
+              target: [audioCache.text, audioCache.language],
+              set: { r2Key: `base64:mp3:${mp3Buffer.toString("base64")}` },
+            });
+        }
       } catch (dbErr) {
         console.warn("Could not write audio to database cache:", dbErr);
       }

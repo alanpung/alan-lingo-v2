@@ -45,9 +45,19 @@ function SpeakerButton({ onSpeak }: { onSpeak: () => void }) {
 export function Listening({ exercise, onResult, onContinue, language, autoplayAudio = true }: Props) {
   const [played, setPlayed] = useState(autoplayAudio);
   const { status, checkAnswer } = useExercise();
-  const { play, stop, loading: audioLoading } = useAudio();
+  const { play, stop, prefetch, loading: audioLoading } = useAudio();
 
   const hasAudio = !exercise.noAudio?.includes("text");
+
+  // Prefetch exercise text and any choices immediately
+  useEffect(() => {
+    const textsToPrefetch: string[] = [];
+    if (exercise.text) textsToPrefetch.push(exercise.text);
+    if (exercise.choices) textsToPrefetch.push(...exercise.choices);
+    if (textsToPrefetch.length > 0) {
+      prefetch(textsToPrefetch, language);
+    }
+  }, [exercise.text, exercise.choices, language, prefetch]);
 
   function speak() {
     if (hasAudio) play(exercise.text, language);

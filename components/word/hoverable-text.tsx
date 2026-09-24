@@ -62,7 +62,7 @@ export function HoverableText({
 }: HoverableTextProps) {
   const [active, setActive] = useState<ActiveWord | null>(null);
   const hoverTimer = useRef<NodeJS.Timeout | null>(null);
-  const { play } = useAudio();
+  const { play, prefetch } = useAudio();
 
   const triggerInspect = useCallback(
     (el: HTMLElement, word: string, wordLang?: string) => {
@@ -78,12 +78,17 @@ export function HoverableText({
     (e: React.MouseEvent<HTMLSpanElement>, word: string, wordLang?: string) => {
       const target = e.currentTarget;
       if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      // Immediately prefetch word audio so it's loaded by the time the hover triggers
+      if (!noAudio) {
+        const resolvedLang = wordLang || detectTextLanguage(word, { targetLanguage: language });
+        prefetch([word], resolvedLang);
+      }
       // Brief 180ms delay to prevent accidental pops while quickly moving mouse
       hoverTimer.current = setTimeout(() => {
         triggerInspect(target, word, wordLang);
       }, 180);
     },
-    [triggerInspect]
+    [triggerInspect, noAudio, language, prefetch]
   );
 
   const handleMouseLeave = useCallback(() => {

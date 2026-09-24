@@ -34,7 +34,11 @@ export function WordBank({ exercise, onResult, onContinue, language, autoplayAud
   );
   const [taken, setTaken] = useState<Set<number>>(new Set());
   const { status, checkAnswer } = useExercise();
-  const { play, stop, loading: audioLoading } = useAudio();
+  const { play, stop, prefetch, loading: audioLoading } = useAudio();
+
+  useEffect(() => {
+    prefetch([exercise.text], language);
+  }, [exercise.text, language, prefetch]);
 
   useEffect(() => {
     if (autoplayAudio && !exercise.noAudio?.includes("text")) play(exercise.text, language);

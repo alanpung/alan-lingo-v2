@@ -151,7 +151,9 @@ export interface FreeTextExercise {
 export interface FlashcardReviewExercise {
   type: "flashcard-review";
   front: string;
-  back: string;
+  back?: string;
+  meaning?: string;
+  translation?: string;
   noAudio?: string[];
   srsWords: string | string[];
 }
