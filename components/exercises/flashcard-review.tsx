@@ -31,11 +31,12 @@ function parseFlashcardContent(exercise: FlashcardReviewExercise): {
   meaning: string;
   translation: string;
 } {
+  if (!exercise) return { meaning: "", translation: "" };
   let meaning = exercise.meaning?.trim() || "";
   let translation = exercise.translation?.trim() || "";
 
   if (!meaning && !translation && exercise.back) {
-    const rawBack = exercise.back.replace(/\\n/g, "\n").trim();
+    const rawBack = String(exercise.back).replace(/\\n/g, "\n").trim();
     const lines = rawBack.split("\n").map((l) => l.trim()).filter(Boolean);
 
     let parsedMeaning = "";
@@ -98,20 +99,20 @@ export function FlashcardReview({
 
   const { meaning, translation } = parseFlashcardContent(exercise);
 
-  const frontTTS = cleanTextForTTS(exercise.front);
-  const backTTS = cleanTextForTTS(exercise.back || meaning);
+  const frontTTS = cleanTextForTTS(exercise?.front || "");
+  const backTTS = cleanTextForTTS(exercise?.back || meaning || "");
 
   // Prefetch both sides of the flashcard immediately
   useEffect(() => {
     const toFetch: string[] = [];
-    if (frontTTS && !exercise.noAudio?.includes("front")) toFetch.push(frontTTS);
-    if (backTTS && !exercise.noAudio?.includes("back")) toFetch.push(backTTS);
+    if (frontTTS && !exercise?.noAudio?.includes("front")) toFetch.push(frontTTS);
+    if (backTTS && !exercise?.noAudio?.includes("back")) toFetch.push(backTTS);
     if (toFetch.length > 0) prefetch(toFetch, language);
-  }, [frontTTS, backTTS, exercise.noAudio, language, prefetch]);
+  }, [frontTTS, backTTS, exercise?.noAudio, language, prefetch]);
 
   // Auto-play front audio when the flashcard is displayed
   useEffect(() => {
-    if (autoplayAudio && frontTTS && !exercise.noAudio?.includes("front")) {
+    if (autoplayAudio && frontTTS && !exercise?.noAudio?.includes("front")) {
       play(frontTTS, language);
     }
     return stop;
@@ -157,7 +158,11 @@ export function FlashcardReview({
     setRated(true);
 
     // Update SRS for each tracked word
-    const words = typeof exercise.srsWords === "string" ? [exercise.srsWords] : exercise.srsWords;
+    const words = Array.isArray(exercise?.srsWords)
+      ? exercise.srsWords
+      : exercise?.srsWords
+        ? [exercise.srsWords]
+        : [];
     for (const w of words) {
       reviewCard(w, language, quality).catch(() => {});
     }
@@ -195,7 +200,7 @@ export function FlashcardReview({
         {/* Front Content (Word) */}
         <div className="prose prose-2xl font-black text-lingo-text [&>p]:m-0 my-3 text-center">
           <Markdown remarkPlugins={[remarkBreaks]}>
-            {exercise.front.replace(/\\n/g, "\n")}
+            {(exercise?.front || "").replace(/\\n/g, "\n")}
           </Markdown>
         </div>
 

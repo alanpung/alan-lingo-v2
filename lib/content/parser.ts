@@ -324,11 +324,11 @@ function parseWordBank(lines: string[]): WordBankExercise {
 
 function parseFlashcardReview(lines: string[]): FlashcardReviewExercise {
   const front = getField(lines, "front");
-  const back = getField(lines, "back") || "";
-  const meaning = getField(lines, "meaning");
-  const translation = getField(lines, "translation");
+  const back = getOptionalField(lines, "back") || "";
+  const meaning = getOptionalField(lines, "meaning");
+  const translation = getOptionalField(lines, "translation");
   const srsWords = parseSrsWords(lines) ?? "";
-  const finalBack = back || [meaning, translation].filter(Boolean).join("\n");
+  const finalBack = back || [meaning, translation].filter(Boolean).join("\n") || "";
   return {
     type: "flashcard-review",
     front,
