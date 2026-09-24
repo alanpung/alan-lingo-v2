@@ -12,6 +12,7 @@ const audioBufferCache = new Map<string, AudioBuffer>();
 // Shared Web Audio Context for zero-delay mobile playback
 let sharedAudioContext: AudioContext | null = null;
 let currentSourceNode: AudioBufferSourceNode | null = null;
+let currentGainNode: GainNode | null = null;
 let pendingMobilePlayback: { text: string; language: string; playFn: () => void } | null = null;
 
 function getAudioContext(): AudioContext | null {
@@ -102,13 +103,41 @@ export function useAudio() {
     setLoading(false);
     pendingMobilePlayback = null;
 
-    // 1. Stop Web Audio buffer source
-    if (currentSourceNode) {
+    // 1. Stop Web Audio buffer source with rapid anti-pop gain ramp down
+    if (currentGainNode && sharedAudioContext) {
       try {
-        currentSourceNode.stop();
-        currentSourceNode.disconnect();
+        const now = sharedAudioContext.currentTime;
+        currentGainNode.gain.cancelScheduledValues(now);
+        currentGainNode.gain.setValueAtTime(currentGainNode.gain.value, now);
+        currentGainNode.gain.linearRampToValueAtTime(0, now + 0.015);
       } catch {}
+    }
+
+    if (currentSourceNode) {
+      const src = currentSourceNode;
+      const gain = currentGainNode;
+      try {
+        if (sharedAudioContext) {
+          src.stop(sharedAudioContext.currentTime + 0.02);
+          setTimeout(() => {
+            try {
+              src.disconnect();
+              gain?.disconnect();
+            } catch {}
+          }, 30);
+        } else {
+          src.stop();
+          src.disconnect();
+          gain?.disconnect();
+        }
+      } catch {
+        try {
+          src.disconnect();
+          gain?.disconnect();
+        } catch {}
+      }
       currentSourceNode = null;
+      currentGainNode = null;
     }
 
     // 2. Stop HTMLAudioElement
@@ -175,20 +204,47 @@ export function useAudio() {
           try {
             currentSourceNode.stop();
             currentSourceNode.disconnect();
+            currentGainNode?.disconnect();
           } catch {}
           currentSourceNode = null;
+          currentGainNode = null;
         }
 
         const source = audioCtx.createBufferSource();
         source.buffer = audioBuffer;
-        source.connect(audioCtx.destination);
+
+        // Anti-buzz / anti-pop GainNode envelope
+        const gainNode = audioCtx.createGain();
+        source.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        const duration = audioBuffer.duration;
+
+        // Micro-fade in (5ms) to prevent speaker impulse pop
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(1, now + 0.005);
+
+        // Smooth fade out (15ms before end of buffer) to eliminate trailing buzz
+        if (duration > 0.04) {
+          gainNode.gain.setValueAtTime(1, now + duration - 0.015);
+          gainNode.gain.linearRampToValueAtTime(0, now + duration);
+        }
+
         source.onended = () => {
           if (currentSourceNode === source) {
             currentSourceNode = null;
+            currentGainNode = null;
           }
+          try {
+            source.disconnect();
+            gainNode.disconnect();
+          } catch {}
         };
+
         currentSourceNode = source;
-        source.start(0);
+        currentGainNode = gainNode;
+        source.start(now);
         return true;
       } catch (err) {
         console.warn("Web Audio playback failed, falling back to HTMLAudioElement:", err);

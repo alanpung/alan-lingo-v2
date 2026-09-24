@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateSpeech, getCachedAudio, getPersistentCachedAudio } from "@/lib/tts";
+import {
+  generateSpeech,
+  getCachedAudio,
+  getPersistentCachedAudio,
+  smoothWavBuffer,
+} from "@/lib/tts";
 import { getAudio } from "@/lib/r2";
 import { getSession } from "@/lib/auth-server";
 
@@ -76,8 +81,12 @@ export async function GET(request: NextRequest) {
   // 1. Check in-memory Gemini TTS cache first
   const memoryCached = getCachedAudio(key);
   if (memoryCached) {
+    const cleanBuffer =
+      memoryCached.mimeType === "audio/wav"
+        ? smoothWavBuffer(memoryCached.buffer)
+        : memoryCached.buffer;
     return createAudioResponse(
-      memoryCached.buffer,
+      cleanBuffer,
       memoryCached.mimeType || "audio/wav",
       request
     );

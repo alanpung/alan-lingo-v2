@@ -42,12 +42,97 @@ const memoryAudioCache = new Map<string, { buffer: Buffer; mimeType: string }>()
  * 4. Applies a rapid 5ms Hann window micro-fade-out (eliminates cutoff pop without cutting final consonants).
  * 5. Minimal 5ms digital silence padding so audio hardware transitions cleanly without delay.
  */
+/**
+ * Extracts pure, pristine PCM audio data from any input (raw PCM, single WAV, or nested WAV).
+ * Strips all non-audio metadata chunks (C2PA, JUMBF, SynthID, IPTC, XMP) that cause buzzing static.
+ */
+export function extractCleanPcm(
+  pcmBase64OrBuffer: string | Buffer,
+  fallbackSampleRate = 24000,
+  fallbackNumChannels = 1
+): { pcm: Buffer; sampleRate: number; numChannels: number } {
+  let buf =
+    typeof pcmBase64OrBuffer === "string"
+      ? Buffer.from(pcmBase64OrBuffer, "base64")
+      : pcmBase64OrBuffer;
+
+  let sampleRate = fallbackSampleRate;
+  let numChannels = fallbackNumChannels;
+
+  // 1. Unwrap any outer/nested WAV RIFF containers and extract strictly the 'data' chunk
+  while (
+    buf.length >= 12 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WAVE"
+  ) {
+    let offset = 12;
+    let foundDataChunk: Buffer | null = null;
+
+    while (offset <= buf.length - 8) {
+      const chunkId = buf.toString("ascii", offset, offset + 4);
+      const chunkSize = buf.readUInt32LE(offset + 4);
+      const chunkDataStart = offset + 8;
+      const nextChunkOffset = chunkDataStart + chunkSize + (chunkSize % 2);
+
+      if (chunkId === "fmt " && chunkSize >= 16) {
+        numChannels = buf.readUInt16LE(chunkDataStart + 2) || numChannels;
+        sampleRate = buf.readUInt32LE(chunkDataStart + 4) || sampleRate;
+      } else if (chunkId === "data") {
+        const actualEnd = Math.min(buf.length, chunkDataStart + chunkSize);
+        foundDataChunk = buf.subarray(chunkDataStart, actualEnd);
+        // We found the actual audio payload; do not parse trailing metadata chunks (e.g. 'jumb', 'LIST')
+        break;
+      }
+      offset = nextChunkOffset;
+    }
+
+    if (foundDataChunk) {
+      buf = foundDataChunk;
+    } else {
+      break;
+    }
+  }
+
+  // 2. Strip any embedded or trailing C2PA/SynthID/IPTC metadata signatures that might exist in raw PCM
+  const metadataSignatures = [
+    "jumb",
+    "jumd",
+    "c2pa",
+    "http://cv.iptc.org",
+    "http://c2pa",
+    "trainedAlgorithmicMedia",
+    "SynthID",
+  ];
+
+  let earliestCut = buf.length;
+  for (const sig of metadataSignatures) {
+    const idx = buf.indexOf(sig);
+    if (idx !== -1 && idx < earliestCut) {
+      // Align cut to 2-byte sample boundary
+      earliestCut = idx - (idx % 2);
+    }
+  }
+
+  const pcm = buf.subarray(0, earliestCut);
+  return { pcm, sampleRate, numChannels };
+}
+
+/**
+ * Cleans linear 16-bit PCM audio to eliminate clicks, pops, DC offset, and trailing buzz:
+ * 1. Enforces 16-bit sample alignment.
+ * 2. Removes any DC offset / voltage bias.
+ * 3. Scans backwards to find the end of real speech activity and cuts off trailing vocoder hum/buzz,
+ *    while preserving a generous 70ms natural release cushion so no ending consonant is ever cut.
+ * 4. Applies a rapid 5ms Hann window micro-fade-in at onset.
+ * 5. Applies a smooth 15ms Hann window fade-out to true zero at completion.
+ * 6. Adds minimal 5ms digital silence padding so audio hardware powers down smoothly.
+ */
 export function cleanAndSmoothPcm(
   rawBuffer: Buffer,
   sampleRate = 24000
 ): Buffer {
   const numBytes = rawBuffer.length - (rawBuffer.length % 2);
-  const numSamples = numBytes / 2;
+  let numSamples = numBytes / 2;
   if (numSamples <= 0) return rawBuffer;
 
   const samples = new Int16Array(numSamples);
@@ -60,7 +145,7 @@ export function cleanAndSmoothPcm(
 
   // 1. Remove DC offset
   const dcOffset = Math.round(sum / numSamples);
-  if (Math.abs(dcOffset) > 4) {
+  if (Math.abs(dcOffset) > 2) {
     for (let i = 0; i < numSamples; i++) {
       let val = samples[i] - dcOffset;
       if (val > 32767) val = 32767;
@@ -69,10 +154,40 @@ export function cleanAndSmoothPcm(
     }
   }
 
-  // 2. Ultra-short 5ms micro-fade-in (~120 samples at 24kHz) to protect crucial initial word sounds
+  // 2. Trailing noise floor gate:
+  // Detect where vocal energy finishes and trim any trailing neural vocoder static/buzz
+  // Window size: 10ms (~240 samples at 24kHz)
+  const windowSize = Math.max(1, Math.floor((sampleRate * 10) / 1000));
+  let lastActiveSample = numSamples - 1;
+
+  for (let i = numSamples - 1; i >= windowSize; i -= windowSize) {
+    let peak = 0;
+    const start = Math.max(0, i - windowSize);
+    for (let j = start; j <= i; j++) {
+      const abs = Math.abs(samples[j]);
+      if (abs > peak) peak = abs;
+    }
+    // Threshold for vocal activity (amplitude > 150 out of 32767)
+    if (peak > 150) {
+      lastActiveSample = i;
+      break;
+    }
+  }
+
+  // Preserve generous 70ms natural acoustic decay cushion (~1680 samples at 24kHz)
+  // This guarantees soft ending consonants ('t', 's', 'k', 'p', 'th', 'd') are NEVER clipped.
+  const cushionSamples = Math.floor((sampleRate * 70) / 1000);
+  const minSilence = Math.floor((sampleRate * 5) / 1000);
+
+  const trailing = numSamples - 1 - lastActiveSample;
+  const keepTrailing = Math.min(trailing, cushionSamples);
+  const effectiveEndSample = lastActiveSample + 1 + keepTrailing;
+  const leadOutSilence = Math.max(0, minSilence - keepTrailing);
+
+  // 3. Ultra-short 5ms micro-fade-in (~120 samples at 24kHz) to protect crucial initial word sounds
   const fadeInSamples = Math.min(
     Math.floor((sampleRate * 5) / 1000),
-    Math.floor(numSamples / 8)
+    Math.floor(effectiveEndSample / 8)
   );
   if (fadeInSamples > 0) {
     for (let i = 0; i < fadeInSamples; i++) {
@@ -81,48 +196,48 @@ export function cleanAndSmoothPcm(
     }
   }
 
-  // 3. Ultra-short 5ms micro-fade-out (~120 samples at 24kHz) to protect ending word sounds
+  // 4. Smooth 15ms micro-fade-out to zero to prevent trailing click or buzz
   const fadeOutSamples = Math.min(
-    Math.floor((sampleRate * 5) / 1000),
-    Math.floor(numSamples / 8)
+    Math.floor((sampleRate * 15) / 1000),
+    Math.floor(effectiveEndSample / 4)
   );
   if (fadeOutSamples > 0) {
     for (let i = 0; i < fadeOutSamples; i++) {
-      const idx = numSamples - 1 - i;
+      const idx = effectiveEndSample - 1 - i;
       const factor = 0.5 * (1 - Math.cos((Math.PI * i) / fadeOutSamples));
       samples[idx] = Math.round(samples[idx] * factor);
     }
   }
 
-  // 4. Minimal 5ms digital silence padding (120 samples)
-  const leadInSilence = Math.floor((sampleRate * 5) / 1000);
-  const leadOutSilence = Math.floor((sampleRate * 5) / 1000);
-  const totalSamples = leadInSilence + numSamples + leadOutSilence;
+  // 5. Minimal digital silence padding (at least 5ms)
+  const totalSamples = effectiveEndSample + leadOutSilence;
 
   const resultBuffer = Buffer.alloc(totalSamples * 2);
-  for (let i = 0; i < numSamples; i++) {
-    resultBuffer.writeInt16LE(samples[i], (leadInSilence + i) * 2);
+  for (let i = 0; i < effectiveEndSample; i++) {
+    resultBuffer.writeInt16LE(samples[i], i * 2);
   }
+  // Remaining leadOutSilence bytes remain zeroed
 
   return resultBuffer;
 }
 
-// Convert 24kHz 16-bit mono Little-Endian PCM into standard WAV format with de-buzzing DSP
+// Convert PCM or contaminated WAV into standard, pristine WAV format with de-buzzing DSP
 export function pcmToWav(
   pcmBase64OrBuffer: string | Buffer,
   sampleRate = 24000,
   numChannels = 1
 ): Buffer {
-  const rawBuffer =
-    typeof pcmBase64OrBuffer === "string"
-      ? Buffer.from(pcmBase64OrBuffer, "base64")
-      : pcmBase64OrBuffer;
+  const { pcm: rawPcm, sampleRate: sr, numChannels: ch } = extractCleanPcm(
+    pcmBase64OrBuffer,
+    sampleRate,
+    numChannels
+  );
 
-  const pcmBuffer = cleanAndSmoothPcm(rawBuffer, sampleRate);
+  const cleanPcm = cleanAndSmoothPcm(rawPcm, sr);
 
-  const byteRate = sampleRate * numChannels * 2;
-  const blockAlign = numChannels * 2;
-  const dataSize = pcmBuffer.length;
+  const byteRate = sr * ch * 2;
+  const blockAlign = ch * 2;
+  const dataSize = cleanPcm.length;
   const header = Buffer.alloc(44);
 
   header.write("RIFF", 0);
@@ -131,53 +246,22 @@ export function pcmToWav(
   header.write("fmt ", 12);
   header.writeUInt32LE(16, 16); // Subchunk1Size for PCM
   header.writeUInt16LE(1, 20); // AudioFormat 1 = PCM
-  header.writeUInt16LE(numChannels, 22);
-  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt16LE(ch, 22);
+  header.writeUInt32LE(sr, 24);
   header.writeUInt32LE(byteRate, 28);
   header.writeUInt16LE(blockAlign, 32);
   header.writeUInt16LE(16, 34); // BitsPerSample
   header.write("data", 36);
   header.writeUInt32LE(dataSize, 40);
 
-  return Buffer.concat([header, pcmBuffer]);
+  return Buffer.concat([header, cleanPcm]);
 }
 
 /**
- * Re-smooth an existing WAV buffer to remove DC offset and cutoff buzz
+ * Re-smooth an existing WAV buffer to remove metadata, DC offset, and buzz
  */
 export function smoothWavBuffer(wavBuffer: Buffer): Buffer {
-  if (wavBuffer.length < 44) return wavBuffer;
-  if (
-    wavBuffer.toString("ascii", 0, 4) !== "RIFF" ||
-    wavBuffer.toString("ascii", 8, 12) !== "WAVE"
-  ) {
-    return wavBuffer;
-  }
-
-  let dataOffset = 44;
-  let dataSize = wavBuffer.length - 44;
-
-  if (wavBuffer.toString("ascii", 36, 40) === "data") {
-    dataSize = wavBuffer.readUInt32LE(40);
-    dataOffset = 44;
-  } else {
-    for (let i = 12; i < Math.min(120, wavBuffer.length - 8); i++) {
-      if (wavBuffer.toString("ascii", i, i + 4) === "data") {
-        dataSize = wavBuffer.readUInt32LE(i + 4);
-        dataOffset = i + 8;
-        break;
-      }
-    }
-  }
-
-  const sampleRate = wavBuffer.readUInt32LE(24) || 24000;
-  const numChannels = wavBuffer.readUInt16LE(22) || 1;
-  const pcmRaw = wavBuffer.subarray(
-    dataOffset,
-    Math.min(wavBuffer.length, dataOffset + dataSize)
-  );
-
-  return pcmToWav(pcmRaw, sampleRate, numChannels);
+  return pcmToWav(wavBuffer);
 }
 
 export function getCachedAudio(key: string): { buffer: Buffer; mimeType: string } | null {
