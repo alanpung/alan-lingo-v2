@@ -34,16 +34,92 @@ function getGeminiClient(): GoogleGenAI {
 // Memory cache for generated audio to minimize API calls and avoid quota exhaustion
 const memoryAudioCache = new Map<string, { buffer: Buffer; mimeType: string }>();
 
-// Convert 24kHz 16-bit mono Little-Endian PCM into standard WAV format
+/**
+ * Cleans raw 16-bit linear PCM audio to eliminate clicks, pops, DC offset, and buzz:
+ * 1. Enforces 16-bit sample alignment.
+ * 2. Removes any DC offset / voltage bias.
+ * 3. Applies a smooth Hann window fade-in over the first 20ms (eliminates start click/buzz).
+ * 4. Applies a smooth Hann window fade-out over the last 25ms (eliminates cutoff pop/buzz).
+ * 5. Prepends 25ms and appends 35ms of digital silence padding, allowing browser DACs
+ *    to unmute/mute seamlessly without gating distortion.
+ */
+export function cleanAndSmoothPcm(
+  rawBuffer: Buffer,
+  sampleRate = 24000
+): Buffer {
+  const numBytes = rawBuffer.length - (rawBuffer.length % 2);
+  const numSamples = numBytes / 2;
+  if (numSamples <= 0) return rawBuffer;
+
+  const samples = new Int16Array(numSamples);
+  let sum = 0;
+  for (let i = 0; i < numSamples; i++) {
+    const val = rawBuffer.readInt16LE(i * 2);
+    samples[i] = val;
+    sum += val;
+  }
+
+  // 1. Remove DC offset
+  const dcOffset = Math.round(sum / numSamples);
+  if (Math.abs(dcOffset) > 4) {
+    for (let i = 0; i < numSamples; i++) {
+      let val = samples[i] - dcOffset;
+      if (val > 32767) val = 32767;
+      else if (val < -32768) val = -32768;
+      samples[i] = val;
+    }
+  }
+
+  // 2. Smooth fade-in (first 20ms = ~480 samples at 24kHz)
+  const fadeInSamples = Math.min(
+    Math.floor((sampleRate * 20) / 1000),
+    Math.floor(numSamples / 4)
+  );
+  if (fadeInSamples > 0) {
+    for (let i = 0; i < fadeInSamples; i++) {
+      const factor = 0.5 * (1 - Math.cos((Math.PI * i) / fadeInSamples));
+      samples[i] = Math.round(samples[i] * factor);
+    }
+  }
+
+  // 3. Smooth fade-out (last 25ms = ~600 samples at 24kHz)
+  const fadeOutSamples = Math.min(
+    Math.floor((sampleRate * 25) / 1000),
+    Math.floor(numSamples / 4)
+  );
+  if (fadeOutSamples > 0) {
+    for (let i = 0; i < fadeOutSamples; i++) {
+      const idx = numSamples - 1 - i;
+      const factor = 0.5 * (1 - Math.cos((Math.PI * i) / fadeOutSamples));
+      samples[idx] = Math.round(samples[idx] * factor);
+    }
+  }
+
+  // 4. Digital silence padding: 25ms lead-in + 35ms lead-out
+  const leadInSilence = Math.floor((sampleRate * 25) / 1000);
+  const leadOutSilence = Math.floor((sampleRate * 35) / 1000);
+  const totalSamples = leadInSilence + numSamples + leadOutSilence;
+
+  const resultBuffer = Buffer.alloc(totalSamples * 2);
+  for (let i = 0; i < numSamples; i++) {
+    resultBuffer.writeInt16LE(samples[i], (leadInSilence + i) * 2);
+  }
+
+  return resultBuffer;
+}
+
+// Convert 24kHz 16-bit mono Little-Endian PCM into standard WAV format with de-buzzing DSP
 export function pcmToWav(
   pcmBase64OrBuffer: string | Buffer,
   sampleRate = 24000,
   numChannels = 1
 ): Buffer {
-  const pcmBuffer =
+  const rawBuffer =
     typeof pcmBase64OrBuffer === "string"
       ? Buffer.from(pcmBase64OrBuffer, "base64")
       : pcmBase64OrBuffer;
+
+  const pcmBuffer = cleanAndSmoothPcm(rawBuffer, sampleRate);
 
   const byteRate = sampleRate * numChannels * 2;
   const blockAlign = numChannels * 2;
@@ -65,6 +141,44 @@ export function pcmToWav(
   header.writeUInt32LE(dataSize, 40);
 
   return Buffer.concat([header, pcmBuffer]);
+}
+
+/**
+ * Re-smooth an existing WAV buffer to remove DC offset and cutoff buzz
+ */
+export function smoothWavBuffer(wavBuffer: Buffer): Buffer {
+  if (wavBuffer.length < 44) return wavBuffer;
+  if (
+    wavBuffer.toString("ascii", 0, 4) !== "RIFF" ||
+    wavBuffer.toString("ascii", 8, 12) !== "WAVE"
+  ) {
+    return wavBuffer;
+  }
+
+  let dataOffset = 44;
+  let dataSize = wavBuffer.length - 44;
+
+  if (wavBuffer.toString("ascii", 36, 40) === "data") {
+    dataSize = wavBuffer.readUInt32LE(40);
+    dataOffset = 44;
+  } else {
+    for (let i = 12; i < Math.min(120, wavBuffer.length - 8); i++) {
+      if (wavBuffer.toString("ascii", i, i + 4) === "data") {
+        dataSize = wavBuffer.readUInt32LE(i + 4);
+        dataOffset = i + 8;
+        break;
+      }
+    }
+  }
+
+  const sampleRate = wavBuffer.readUInt32LE(24) || 24000;
+  const numChannels = wavBuffer.readUInt16LE(22) || 1;
+  const pcmRaw = wavBuffer.subarray(
+    dataOffset,
+    Math.min(wavBuffer.length, dataOffset + dataSize)
+  );
+
+  return pcmToWav(pcmRaw, sampleRate, numChannels);
 }
 
 export function getCachedAudio(key: string): { buffer: Buffer; mimeType: string } | null {
@@ -104,6 +218,9 @@ export async function getPersistentCachedAudio(
       }
 
       if (buffer) {
+        if (mimeType === "audio/wav") {
+          buffer = smoothWavBuffer(buffer);
+        }
         const item = { buffer, mimeType };
         memoryAudioCache.set(key, item);
         return item;

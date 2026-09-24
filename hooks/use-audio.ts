@@ -55,11 +55,18 @@ export function useAudio() {
     nonceRef.current++;
     setLoading(false);
     if (currentAudio.current) {
-      currentAudio.current.pause();
+      try {
+        currentAudio.current.pause();
+        currentAudio.current.currentTime = 0;
+        currentAudio.current.removeAttribute("src");
+        currentAudio.current.load();
+      } catch {}
       currentAudio.current = null;
     }
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
     }
   }, []);
 
@@ -111,6 +118,12 @@ export function useAudio() {
 
       const audio = new Audio(url);
       currentAudio.current = audio;
+
+      audio.onended = () => {
+        if (currentAudio.current === audio) {
+          currentAudio.current = null;
+        }
+      };
 
       audio.onerror = () => {
         console.warn("Audio element failed to play URL, falling back to speech synthesis:", url);
