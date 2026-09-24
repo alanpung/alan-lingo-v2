@@ -3,6 +3,70 @@ import { generateSpeech, getCachedAudio, getPersistentCachedAudio } from "@/lib/
 import { getAudio } from "@/lib/r2";
 import { getSession } from "@/lib/auth-server";
 
+/**
+ * Creates an audio response with full HTTP 206 Partial Content (Range) support.
+ * This is strictly required by iOS Safari and mobile browsers to play audio properly.
+ */
+function createAudioResponse(
+  buffer: Buffer,
+  mimeType: string,
+  request: NextRequest
+): NextResponse {
+  const totalLength = buffer.length;
+  const rangeHeader = request.headers.get("range");
+
+  const commonHeaders: Record<string, string> = {
+    "Content-Type": mimeType,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "public, max-age=31536000, immutable",
+  };
+
+  if (!rangeHeader) {
+    return new NextResponse(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        ...commonHeaders,
+        "Content-Length": totalLength.toString(),
+      },
+    });
+  }
+
+  // Parse Range header: e.g. "bytes=0-" or "bytes=0-1023"
+  const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+  if (!match) {
+    return new NextResponse(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        ...commonHeaders,
+        "Content-Length": totalLength.toString(),
+      },
+    });
+  }
+
+  const start = match[1] ? parseInt(match[1], 10) : 0;
+  const end = match[2] ? parseInt(match[2], 10) : totalLength - 1;
+
+  if (start >= totalLength || end >= totalLength || start > end) {
+    return new NextResponse(null, {
+      status: 416,
+      headers: {
+        "Content-Range": `bytes */${totalLength}`,
+      },
+    });
+  }
+
+  const chunk = buffer.subarray(start, end + 1);
+
+  return new NextResponse(new Uint8Array(chunk), {
+    status: 206,
+    headers: {
+      ...commonHeaders,
+      "Content-Range": `bytes ${start}-${end}/${totalLength}`,
+      "Content-Length": chunk.length.toString(),
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const key = request.nextUrl.searchParams.get("key");
   if (!key) {
@@ -12,34 +76,27 @@ export async function GET(request: NextRequest) {
   // 1. Check in-memory Gemini TTS cache first
   const memoryCached = getCachedAudio(key);
   if (memoryCached) {
-    return new NextResponse(new Uint8Array(memoryCached.buffer), {
-      headers: {
-        "Content-Type": memoryCached.mimeType || "audio/wav",
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    });
+    return createAudioResponse(
+      memoryCached.buffer,
+      memoryCached.mimeType || "audio/wav",
+      request
+    );
   }
 
   // 2. Check persistent database audio cache
   const dbCached = await getPersistentCachedAudio(key);
   if (dbCached) {
-    return new NextResponse(new Uint8Array(dbCached.buffer), {
-      headers: {
-        "Content-Type": dbCached.mimeType || "audio/wav",
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    });
+    return createAudioResponse(
+      dbCached.buffer,
+      dbCached.mimeType || "audio/wav",
+      request
+    );
   }
 
   // 3. Check Cloudflare R2 if configured
   const buffer = await getAudio(key);
   if (buffer) {
-    return new NextResponse(new Uint8Array(buffer), {
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    });
+    return createAudioResponse(buffer, "audio/mpeg", request);
   }
 
   return new NextResponse(null, { status: 404 });

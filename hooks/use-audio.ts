@@ -1,10 +1,57 @@
 "use client";
 
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
 import { detectTextLanguage, getLanguageLocale } from "@/lib/language-detector";
 
 // In-memory URL cache to avoid redundant API calls
 const urlCache = new Map<string, string>();
+
+// In-memory decoded AudioBuffer cache for instant Web Audio playback
+const audioBufferCache = new Map<string, AudioBuffer>();
+
+// Shared Web Audio Context for zero-delay mobile playback
+let sharedAudioContext: AudioContext | null = null;
+let currentSourceNode: AudioBufferSourceNode | null = null;
+let pendingMobilePlayback: { text: string; language: string; playFn: () => void } | null = null;
+
+function getAudioContext(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  if (!sharedAudioContext) {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      sharedAudioContext = new AudioCtx();
+    }
+  }
+  if (sharedAudioContext && sharedAudioContext.state === "suspended") {
+    sharedAudioContext.resume().catch(() => {});
+  }
+  return sharedAudioContext;
+}
+
+// Unlock audio context on any user touch/click gesture on mobile
+if (typeof window !== "undefined") {
+  const unlockAudio = () => {
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+
+    // If there was a pending audio blocked by mobile autoplay before the user touched the screen, play it now
+    if (pendingMobilePlayback) {
+      const pending = pendingMobilePlayback;
+      pendingMobilePlayback = null;
+      try {
+        pending.playFn();
+      } catch {}
+    }
+  };
+
+  window.addEventListener("touchstart", unlockAudio, { passive: true });
+  window.addEventListener("touchend", unlockAudio, { passive: true });
+  window.addEventListener("click", unlockAudio, { passive: true });
+}
 
 /**
  * Fallback to browser Web Speech API if AI audio fails or is offline.
@@ -22,7 +69,6 @@ function speakWithBrowserSynth(text: string, language: string) {
     utterance.lang = targetLocale;
     utterance.rate = 0.9;
 
-    // Pick best matching voice if available
     const voices = window.speechSynthesis.getVoices();
     if (voices.length > 0) {
       const exactVoice = voices.find(
@@ -46,37 +92,37 @@ function speakWithBrowserSynth(text: string, language: string) {
   }
 }
 
-// Global mobile audio unlocker: unlocks HTML5 audio on first touch gesture
-if (typeof window !== "undefined") {
-  const unlockAudio = () => {
-    try {
-      const silentAudio = new Audio();
-      silentAudio.src =
-        "data:audio/wav;base64,UklGRiQAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-      silentAudio.play().catch(() => {});
-    } catch {}
-  };
-  window.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
-  window.addEventListener("click", unlockAudio, { once: true, passive: true });
-}
-
 export function useAudio() {
-  const currentAudio = useRef<HTMLAudioElement | null>(null);
+  const currentAudioElement = useRef<HTMLAudioElement | null>(null);
   const nonceRef = useRef(0);
   const [loading, setLoading] = useState(false);
 
   const stop = useCallback(() => {
     nonceRef.current++;
     setLoading(false);
-    if (currentAudio.current) {
+    pendingMobilePlayback = null;
+
+    // 1. Stop Web Audio buffer source
+    if (currentSourceNode) {
       try {
-        currentAudio.current.pause();
-        currentAudio.current.currentTime = 0;
-        currentAudio.current.removeAttribute("src");
-        currentAudio.current.load();
+        currentSourceNode.stop();
+        currentSourceNode.disconnect();
       } catch {}
-      currentAudio.current = null;
+      currentSourceNode = null;
     }
+
+    // 2. Stop HTMLAudioElement
+    if (currentAudioElement.current) {
+      try {
+        currentAudioElement.current.pause();
+        currentAudioElement.current.currentTime = 0;
+        currentAudioElement.current.removeAttribute("src");
+        currentAudioElement.current.load();
+      } catch {}
+      currentAudioElement.current = null;
+    }
+
+    // 3. Stop SpeechSynthesis
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
         window.speechSynthesis.cancel();
@@ -108,11 +154,58 @@ export function useAudio() {
     return data.url as string;
   }, []);
 
+  const playWithWebAudio = useCallback(
+    async (url: string, audioCtx: AudioContext): Promise<boolean> => {
+      try {
+        if (audioCtx.state === "suspended") {
+          await audioCtx.resume();
+        }
+
+        let audioBuffer = audioBufferCache.get(url);
+        if (!audioBuffer) {
+          const res = await fetch(url);
+          if (!res.ok) return false;
+          const arrayBuffer = await res.arrayBuffer();
+          // Decode audio data safely
+          audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          audioBufferCache.set(url, audioBuffer);
+        }
+
+        if (currentSourceNode) {
+          try {
+            currentSourceNode.stop();
+            currentSourceNode.disconnect();
+          } catch {}
+          currentSourceNode = null;
+        }
+
+        const source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioCtx.destination);
+        source.onended = () => {
+          if (currentSourceNode === source) {
+            currentSourceNode = null;
+          }
+        };
+        currentSourceNode = source;
+        source.start(0);
+        return true;
+      } catch (err) {
+        console.warn("Web Audio playback failed, falling back to HTMLAudioElement:", err);
+        return false;
+      }
+    },
+    []
+  );
+
   const play = useCallback(
     async (text: string, language: string) => {
       stop();
       const nonce = nonceRef.current;
       const resolvedLang = detectTextLanguage(text, { targetLanguage: language });
+
+      // Ensure AudioContext is awakened as early as possible in call stack
+      const audioCtx = getAudioContext();
 
       setLoading(true);
       let url: string | null = null;
@@ -130,23 +223,25 @@ export function useAudio() {
 
       if (nonce !== nonceRef.current || !url) return;
 
-      const audio = new Audio(url);
-      currentAudio.current = audio;
+      // Method 1: Try Web Audio API (bypasses mobile gesture timeout and iOS Range bugs)
+      if (audioCtx) {
+        const played = await playWithWebAudio(url, audioCtx);
+        if (played) return;
+      }
 
-      audio.onended = () => {
-        if (currentAudio.current === audio) {
-          currentAudio.current = null;
-        }
-      };
-
-      audio.onerror = () => {
-        console.warn("Audio element failed to play URL, falling back to speech synthesis:", url);
-        if (nonce === nonceRef.current) {
-          speakWithBrowserSynth(text, resolvedLang);
-        }
-      };
-
+      // Method 2: HTMLAudioElement with Range support
       try {
+        const audio = new Audio();
+        audio.preload = "auto";
+        audio.src = url;
+        currentAudioElement.current = audio;
+
+        audio.onended = () => {
+          if (currentAudioElement.current === audio) {
+            currentAudioElement.current = null;
+          }
+        };
+
         await audio.play();
       } catch (playErr: unknown) {
         const isNotAllowed =
@@ -156,19 +251,23 @@ export function useAudio() {
             playErr.message.toLowerCase().includes("gesture"));
 
         if (isNotAllowed) {
-          // Mobile browser autoplay policy blocked audio without a user gesture.
-          // Do NOT replace the AI voice with the phone's robotic Siri/Android voice!
-          // When the student taps "Listen" or touches the card, the real AI voice will play.
-          console.info("Mobile autoplay blocked; waiting for user touch gesture.");
+          // If blocked by mobile policy before first touch, queue it to play on the very first touch
+          pendingMobilePlayback = {
+            text,
+            language: resolvedLang,
+            playFn: () => play(text, language),
+          };
+          console.info("Mobile autoplay deferred until user touches screen.");
         } else {
-          console.warn("audio.play() error, falling back to speech synthesis:", playErr);
+          // Real error: fallback to browser synth
+          console.warn("Audio playback failed, falling back to speech synthesis:", playErr);
           if (nonce === nonceRef.current) {
             speakWithBrowserSynth(text, resolvedLang);
           }
         }
       }
     },
-    [stop, fetchUrl]
+    [stop, fetchUrl, playWithWebAudio]
   );
 
   const prefetch = useCallback(
@@ -180,6 +279,10 @@ export function useAudio() {
     },
     [fetchUrl]
   );
+
+  useEffect(() => {
+    return stop;
+  }, [stop]);
 
   return { play, stop, prefetch, loading };
 }
