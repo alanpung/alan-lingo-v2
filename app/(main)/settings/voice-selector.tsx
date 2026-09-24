@@ -29,6 +29,7 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [previewError, setPreviewError] = useState("");
+  const [fallbackNotice, setFallbackNotice] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -36,6 +37,9 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
       }
     };
   }, []);
@@ -67,25 +71,52 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
     }
   };
 
+  const playBrowserFallback = (sample: string) => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(sample);
+      utterance.lang = "en-US";
+      
+      const voiceInfo = AVAILABLE_VOICES.find((v) => v.id === selectedVoice);
+      if (voiceInfo?.gender === "masculine") {
+        utterance.pitch = 0.85;
+      } else {
+        utterance.pitch = 1.1;
+      }
+      
+      utterance.onstart = () => setIsPlaying(true);
+      utterance.onend = () => setIsPlaying(false);
+      utterance.onerror = () => setIsPlaying(false);
+      
+      window.speechSynthesis.speak(utterance);
+      setFallbackNotice("Playing via browser speech fallback while Gemini rate limit cools down (~30s).");
+      setTimeout(() => setFallbackNotice(""), 6000);
+    }
+  };
+
   const handleTestPreview = async (testText?: string, testLang?: string) => {
     setIsPreviewing(true);
     setIsPlaying(false);
     setPreviewError("");
+    setFallbackNotice("");
 
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
     }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    const sample =
+      testText ||
+      "Hello and welcome to AlanLingo. Master new languages with confidence, intelligence, and natural cadence.";
 
     try {
       const activeInstructions =
         selectedPreset === "custom"
           ? customInstructions
           : VOICE_STYLE_PRESETS.find((p) => p.id === selectedPreset)?.template;
-
-      const sample =
-        testText ||
-        "Hello and welcome to AlanLingo. Experience intelligent, natural language learning with realistic speech synthesis.";
 
       const res = await previewVoiceAudio({
         voiceName: selectedVoice,
@@ -103,7 +134,7 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
         };
         audio.onerror = () => {
           setIsPlaying(false);
-          setPreviewError("Failed to play generated audio.");
+          playBrowserFallback(sample);
         };
 
         setIsPlaying(true);
@@ -112,9 +143,10 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
         throw new Error("No audio returned from server");
       }
     } catch (err: unknown) {
-      console.error("Test voice error:", err);
-      setPreviewError(err instanceof Error ? err.message : "Failed to play voice sample");
-      setIsPlaying(false);
+      const message = err instanceof Error ? err.message : "Failed to play voice sample";
+      setPreviewError(message);
+      // Play speech via browser so user still hears audio
+      playBrowserFallback(sample);
     } finally {
       setIsPreviewing(false);
     }
@@ -277,9 +309,22 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
         </div>
       )}
 
-      {(saveError || previewError) && (
+      {fallbackNotice && (
+        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded-xl animate-fade-in flex items-center gap-2">
+          <span>ℹ️</span>
+          <span>{fallbackNotice}</span>
+        </div>
+      )}
+
+      {previewError && !fallbackNotice && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl animate-fade-in">
-          {saveError || previewError}
+          {previewError}
+        </div>
+      )}
+
+      {saveError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl animate-fade-in">
+          {saveError}
         </div>
       )}
     </div>

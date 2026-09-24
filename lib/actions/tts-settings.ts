@@ -135,7 +135,7 @@ export async function previewVoiceAudio({
   instructions?: string;
   sampleText?: string;
   language?: string;
-}): Promise<{ url: string; audioBase64: string }> {
+}): Promise<{ url: string; audioBase64: string; mimeType: string }> {
   const session = await requireSession();
   if (!isAdminEmail(session.user.email)) {
     throw new Error("Unauthorized");
@@ -145,17 +145,29 @@ export async function previewVoiceAudio({
     sampleText ||
     "Hello! Welcome to AlanLingo. Master new languages with intelligence, confidence, and natural flow.";
 
-  const result = await generateSpeech(text, language, {
-    voiceName,
-    instructions,
-    skipCache: true,
-  });
+  try {
+    const result = await generateSpeech(text, language, {
+      voiceName,
+      instructions,
+      skipCache: false, // Enable caching so repeated voice tests don't consume API quota
+    });
 
-  const base64 = result.buffer.toString("base64");
-  const dataUrl = `data:audio/wav;base64,${base64}`;
+    const base64 = result.buffer.toString("base64");
+    const mime = result.mimeType || "audio/wav";
+    const dataUrl = `data:${mime};base64,${base64}`;
 
-  return {
-    url: dataUrl,
-    audioBase64: base64,
-  };
+    return {
+      url: dataUrl,
+      audioBase64: base64,
+      mimeType: mime,
+    };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+      throw new Error(
+        "Gemini Free Tier rate limit reached (3 requests/min). Please wait ~30 seconds or test another voice."
+      );
+    }
+    throw err;
+  }
 }

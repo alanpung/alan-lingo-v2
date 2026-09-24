@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { GoogleGenAI, Modality } from "@google/genai";
+import OpenAI from "openai";
 import {
   getDefaultTemplate,
   interpolateTemplate,
@@ -30,7 +31,7 @@ function getGeminiClient(): GoogleGenAI {
   return geminiClient;
 }
 
-// Memory cache for generated audio to minimize API calls and avoid external storage dependencies
+// Memory cache for generated audio to minimize API calls and avoid quota exhaustion
 const memoryAudioCache = new Map<string, { buffer: Buffer; mimeType: string }>();
 
 // Convert 24kHz 16-bit mono Little-Endian PCM into standard WAV format
@@ -77,11 +78,23 @@ export interface GenerateSpeechOptions {
   skipCache?: boolean;
 }
 
+// Fallback voice mapping for OpenAI TTS
+const GEMINI_TO_OPENAI_VOICE: Record<string, "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer"> = {
+  Fenrir: "onyx",
+  Charon: "fable",
+  Zephyr: "alloy",
+  Puck: "nova",
+  Kore: "shimmer",
+  Aoede: "alloy",
+  Leda: "shimmer",
+  Orus: "echo",
+};
+
 export async function generateSpeech(
   text: string,
   language: string,
   options?: GenerateSpeechOptions
-): Promise<{ url: string; buffer: Buffer }> {
+): Promise<{ url: string; buffer: Buffer; mimeType: string }> {
   const normalized = text.trim();
   const resolvedLang = detectTextLanguage(normalized, { targetLanguage: language });
   const target_language = langCodeToName[resolvedLang] || resolvedLang;
@@ -128,62 +141,110 @@ export async function generateSpeech(
     .digest("hex");
   const cacheKey = `${resolvedLang}/${effectiveVoice}/${hash}`;
 
-  if (!options?.skipCache) {
-    const existing = memoryAudioCache.get(cacheKey);
-    if (existing) {
-      return {
-        url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
-        buffer: existing.buffer,
-      };
-    }
+  // Check cache first
+  const existing = memoryAudioCache.get(cacheKey);
+  if (existing && !options?.skipCache) {
+    return {
+      url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
+      buffer: existing.buffer,
+      mimeType: existing.mimeType,
+    };
   }
+
+  // Model fallback chain:
+  // 1. gemini-3.8-flash-tts
+  // 2. gemini-3.8-flash-lite-tts
+  // 3. OpenAI TTS (if key exists)
+  const geminiModels = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"];
+  let lastError: unknown = null;
 
   const ai = getGeminiClient();
 
-  // Call gemini-3.8-flash-lite-tts or gemini-3.8-flash-tts
-  const response = await ai.models.generateContent({
-    model: "gemini-3.8-flash-lite-tts",
-    contents: [
-      {
-        role: "user",
-        parts: [
+  for (const model of geminiModels) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
           {
-            text: normalized,
-            speechMetadata: {
-              style: customInstructions,
-            },
+            role: "user",
+            parts: [
+              {
+                text: normalized,
+                speechMetadata: {
+                  style: customInstructions,
+                },
+              },
+            ],
           },
         ],
-      },
-    ],
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: effectiveVoice },
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: effectiveVoice },
+            },
+          },
         },
-      },
-    },
-  });
+      });
 
-  const part = response.candidates?.[0]?.content?.parts?.[0];
-  const base64Data = part?.inlineData?.data;
+      const part = response.candidates?.[0]?.content?.parts?.[0];
+      const base64Data = part?.inlineData?.data;
 
-  if (!base64Data) {
-    throw new Error("No audio content returned from Gemini TTS");
+      if (base64Data) {
+        // Gemini returns raw 24kHz 16-bit PCM little-endian
+        const wavBuffer = pcmToWav(base64Data, 24000, 1);
+
+        memoryAudioCache.set(cacheKey, {
+          buffer: wavBuffer,
+          mimeType: "audio/wav",
+        });
+
+        return {
+          url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
+          buffer: wavBuffer,
+          mimeType: "audio/wav",
+        };
+      }
+    } catch (err: unknown) {
+      lastError = err;
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`TTS attempt with model ${model} failed (${errMsg}), trying next...`);
+    }
   }
 
-  // Gemini returns audio/l16 (raw 16-bit PCM little-endian at 24kHz)
-  const wavBuffer = pcmToWav(base64Data, 24000, 1);
+  // Fallback to OpenAI TTS if available
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openAiVoice = GEMINI_TO_OPENAI_VOICE[effectiveVoice] || "alloy";
+      const mp3Response = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: openAiVoice,
+        input: normalized,
+      });
 
-  // Store in memory cache
-  memoryAudioCache.set(cacheKey, {
-    buffer: wavBuffer,
-    mimeType: "audio/wav",
-  });
+      const arrayBuffer = await mp3Response.arrayBuffer();
+      const mp3Buffer = Buffer.from(arrayBuffer);
 
-  return {
-    url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
-    buffer: wavBuffer,
-  };
+      memoryAudioCache.set(cacheKey, {
+        buffer: mp3Buffer,
+        mimeType: "audio/mpeg",
+      });
+
+      return {
+        url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
+        buffer: mp3Buffer,
+        mimeType: "audio/mpeg",
+      };
+    } catch (openAiErr) {
+      console.error("OpenAI TTS fallback failed:", openAiErr);
+    }
+  }
+
+  // If all server TTS options fail, rethrow with friendly description
+  const message =
+    lastError instanceof Error
+      ? lastError.message
+      : "Audio service temporarily rate-limited. Please wait a few seconds and try again.";
+  throw new Error(message);
 }
