@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   AVAILABLE_VOICES,
   VOICE_STYLE_PRESETS,
@@ -27,8 +27,18 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
   const [saveError, setSaveError] = useState("");
 
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   const handlePresetChange = (presetId: string) => {
     setSelectedPreset(presetId);
@@ -59,7 +69,13 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
 
   const handleTestPreview = async (testText?: string, testLang?: string) => {
     setIsPreviewing(true);
+    setIsPlaying(false);
     setPreviewError("");
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
 
     try {
       const activeInstructions =
@@ -79,15 +95,26 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
       });
 
       if (res.url) {
-        if (!audioRef.current) {
-          audioRef.current = new Audio();
-        }
-        audioRef.current.src = res.url;
-        await audioRef.current.play();
+        const audio = new Audio(res.url);
+        audioRef.current = audio;
+
+        audio.onended = () => {
+          setIsPlaying(false);
+        };
+        audio.onerror = () => {
+          setIsPlaying(false);
+          setPreviewError("Failed to play generated audio.");
+        };
+
+        setIsPlaying(true);
+        await audio.play();
+      } else {
+        throw new Error("No audio returned from server");
       }
     } catch (err: unknown) {
       console.error("Test voice error:", err);
       setPreviewError(err instanceof Error ? err.message : "Failed to play voice sample");
+      setIsPlaying(false);
     } finally {
       setIsPreviewing(false);
     }
@@ -218,6 +245,11 @@ export function VoiceSelector({ initialSettings }: VoiceSelectorProps) {
               <>
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-lingo-blue border-t-transparent" />
                 <span>Generating Sample...</span>
+              </>
+            ) : isPlaying ? (
+              <>
+                <span className="inline-block animate-pulse text-lingo-green">🔊</span>
+                <span className="text-lingo-green">Playing Sample...</span>
               </>
             ) : (
               <>

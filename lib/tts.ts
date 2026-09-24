@@ -18,7 +18,14 @@ function getGeminiClient(): GoogleGenAI {
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY environment variable is required");
     }
-    geminiClient = new GoogleGenAI({ apiKey });
+    geminiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
   }
   return geminiClient;
 }
@@ -82,7 +89,7 @@ export async function generateSpeech(
   let selectedVoice = options?.voiceName;
   let customInstructions = options?.instructions;
 
-  // If not explicitly provided, try checking user preferences in database if userId provided or global config
+  // If not explicitly provided, check user preferences in database
   if (!selectedVoice || !customInstructions) {
     try {
       if (options?.userId) {
@@ -131,12 +138,24 @@ export async function generateSpeech(
     }
   }
 
-  const prompt = `${customInstructions}\nRead the following text aloud with clear, natural pronunciation. Speak only the exact words provided, saying nothing else:\n\n${normalized}`;
-
   const ai = getGeminiClient();
+
+  // Call gemini-3.8-flash-lite-tts or gemini-3.8-flash-tts
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-flash-tts-preview",
-    contents: [{ parts: [{ text: prompt }] }],
+    model: "gemini-3.8-flash-lite-tts",
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: normalized,
+            speechMetadata: {
+              style: customInstructions,
+            },
+          },
+        ],
+      },
+    ],
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
