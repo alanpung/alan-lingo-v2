@@ -62,7 +62,7 @@ export function ExerciseShell({
   }, [handleKeyDown]);
 
   return (
-    <div className="flex flex-col min-h-[400px]">
+    <div className="flex flex-col min-h-[400px] pb-12 sm:pb-6">
       <div className="flex-1">{children}</div>
 
       {status === "answering" && (
@@ -70,7 +70,7 @@ export function ExerciseShell({
           <Button
             onClick={onCheck}
             disabled={!canCheck}
-            className="w-full"
+            className="w-full h-12 text-base font-bold"
           >
             Check
           </Button>
@@ -85,7 +85,7 @@ export function ExerciseShell({
               <span className="font-bold text-lingo-green">Correct!</span>
             </div>
           </div>
-          <Button onClick={onContinue} className="w-full">
+          <Button onClick={onContinue} className="w-full h-12 text-base font-bold">
             Continue
           </Button>
         </div>
@@ -109,7 +109,7 @@ export function ExerciseShell({
               </div>
             )}
           </div>
-          <Button variant="danger" onClick={onContinue} className="w-full">
+          <Button variant="danger" onClick={onContinue} className="w-full h-12 text-base font-bold">
             Continue
           </Button>
         </div>

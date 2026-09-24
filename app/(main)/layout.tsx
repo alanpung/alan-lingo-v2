@@ -51,7 +51,7 @@ export default async function MainLayout({
       <Sidebar showChat={isAdmin} showRead={isAdmin} />
       <div className="flex flex-1 flex-col md:pl-64 min-h-0">
         <TopBar stats={stats} />
-        <PullToRefresh className="p-4 pb-20 md:p-8 md:pb-8">
+        <PullToRefresh className="p-4 pb-36 md:p-8 md:pb-8">
           {children}
         </PullToRefresh>
       </div>

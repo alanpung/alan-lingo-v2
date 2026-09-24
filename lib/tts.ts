@@ -164,19 +164,7 @@ export async function generateSpeech(
     try {
       const response = await ai.models.generateContent({
         model,
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: normalized,
-                speechMetadata: {
-                  style: customInstructions,
-                },
-              },
-            ],
-          },
-        ],
+        contents: normalized,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {

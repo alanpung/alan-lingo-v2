@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { StandaloneUnitInfo } from "@/lib/content/types";
 import { getLanguageName } from "@/lib/languages";
-import { getUnitColor } from "@/lib/colors";
 import { makeUnitPublic, makeUnitPrivate, deleteUnit } from "@/lib/actions/units";
 import { removeUnitFromLibrary } from "@/lib/actions/library";
-import { CopyLinkButton } from "@/components/ui/copy-link-button";
+import { CreateUnitForm } from "@/components/library/create-unit-form";
 import { QuestionTypeBadge } from "@/components/units/question-type-badge";
+import { CopyLinkButton } from "@/components/ui/copy-link-button";
 
 interface StandaloneUnitsProps {
   units: StandaloneUnitInfo[];
@@ -17,66 +17,90 @@ interface StandaloneUnitsProps {
 }
 
 export function StandaloneUnits({ units, isAdmin }: StandaloneUnitsProps) {
-  if (units.length === 0) {
-    if (!isAdmin) return null;
-    return (
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-bold text-lingo-text">Standalone Units</h2>
-        <div className="rounded-2xl border-2 border-dashed border-lingo-border p-6 text-center">
-          <p className="text-sm font-medium text-lingo-text-light">
-            No standalone units yet. Click{" "}
-            <span className="font-bold text-lingo-text">+ New Unit</span> above to create one.
-          </p>
-        </div>
-      </section>
-    );
-  }
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   return (
     <section className="mb-8">
-      <h2 className="mb-3 text-lg font-bold text-lingo-text">
-        Standalone Units
-      </h2>
-      <div className="grid min-w-0 gap-3">
-        {units.map((unit, i) => (
-          <StandaloneUnitCard
-            key={unit.id}
-            unit={unit}
-            index={i}
-            isAdmin={isAdmin}
-          />
-        ))}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-lg font-bold text-lingo-text">
+          {isAdmin ? "Standalone Units" : "My Units"}
+        </h2>
+        {isAdmin && (
+          <button
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="rounded-xl border-2 border-lingo-border bg-white px-3 py-1.5 text-xs font-bold text-lingo-text shadow-[0_2px_0_0] shadow-lingo-border transition-all hover:border-lingo-green hover:bg-lingo-green/5 active:translate-y-[1px] active:shadow-none"
+          >
+            + New Unit
+          </button>
+        )}
       </div>
+
+      {showCreateForm && isAdmin && (
+        <div className="mb-4">
+          <CreateUnitForm onClose={() => setShowCreateForm(false)} />
+        </div>
+      )}
+
+      {units.length === 0 && !showCreateForm ? (
+        <p className="py-4 text-center text-sm text-lingo-text-light">
+          {isAdmin
+            ? "No standalone units yet."
+            : "You haven't created any units yet. Create one to get started!"}
+        </p>
+      ) : (
+        <div className="grid min-w-0 gap-3">
+          {units.map((u) => (
+            <StandaloneUnitCard key={u.id} unit={u} isAdmin={isAdmin} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
 function StandaloneUnitCard({
   unit,
-  index,
   isAdmin,
 }: {
   unit: StandaloneUnitInfo;
-  index: number;
   isAdmin?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [activeAction, setActiveAction] = useState<
-    null | "make-public" | "make-private" | "delete" | "remove"
-  >(null);
-  const color = getUnitColor(index);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+
   const progress =
     unit.lessonCount > 0
-      ? (unit.completedLessons / unit.lessonCount) * 100
+      ? Math.round((unit.completedLessons / unit.lessonCount) * 100)
       : 0;
   const isPublic = unit.visibility === "public";
-  const hasParseError = unit.parseError === true;
-  const isActionPending = isPending || activeAction !== null;
+  const color = unit.color || "#58CC02";
+  const hasParseError = !!unit.parseError;
+  const isActionPending = isPending && activeAction !== null;
+  const isOwner = unit.isOwner;
+
+  function handleRemoveFromLibrary() {
+    setActiveAction("remove");
+    startTransition(async () => {
+      try {
+        const result = await removeUnitFromLibrary(unit.id);
+        if (result.success) {
+          router.refresh();
+        } else {
+          alert(result.error);
+        }
+      } finally {
+        setActiveAction(null);
+      }
+    });
+  }
 
   function handleMakePublic() {
     const confirmed = window.confirm(
-      "Make this unit public?\n\nAll users will be able to browse this unit and add it to their units."
+      "Are you sure you want to make this unit public?\n\n" +
+        "Once public, this unit cannot be edited anymore. " +
+        "Only admins can make changes to public content. " +
+        "All users will be able to browse and add this unit."
     );
     if (!confirmed) return;
 
@@ -111,27 +135,11 @@ function StandaloneUnitCard({
     });
   }
 
-  function handleRemoveFromLibrary() {
-    setActiveAction("remove");
-    startTransition(async () => {
-      try {
-        const result = await removeUnitFromLibrary(unit.id);
-        if (result.success) {
-          router.refresh();
-        } else {
-          alert(result.error);
-        }
-      } finally {
-        setActiveAction(null);
-      }
-    });
-  }
-
   function handleDelete() {
     const confirmed = window.confirm(
       isPublic
-        ? "Are you sure you want to delete this public unit?\n\nThis will remove the unit completely, including from any users who added it."
-        : "Are you sure you want to delete this unit?\n\nThis action cannot be undone."
+        ? "Are you sure you want to delete this public unit? It will be removed for all users."
+        : "Are you sure you want to delete this unit? This cannot be undone."
     );
     if (!confirmed) return;
 
@@ -150,6 +158,9 @@ function StandaloneUnitCard({
     });
   }
 
+  const showShare = isPublic || unit.isOwner || isAdmin;
+  const showRemove = !unit.isOwner && unit.isInLibrary;
+
   const cardContent = (
     <div
       className={`flex min-w-0 items-center gap-3 p-4${hasParseError ? " opacity-60" : ""}`}
@@ -161,31 +172,63 @@ function StandaloneUnitCard({
         {unit.icon}
       </div>
       <div className="flex-1 min-w-0">
+        {/* Top bar with Share on Left and Remove on Right */}
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            {showShare && !hasParseError && (
+              <CopyLinkButton path={`/unit/${unit.id}`} size="xs" />
+            )}
+            {hasParseError && (
+              <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">
+                Can&apos;t be parsed
+              </span>
+            )}
+            {isOwner ? (
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  isPublic
+                    ? "bg-lingo-green/15 text-lingo-green"
+                    : "bg-lingo-gray text-lingo-text-light"
+                }`}
+              >
+                {isPublic ? "🌐 Public" : "🔒 Private"}
+              </span>
+            ) : unit.isInLibrary ? (
+              <span className="shrink-0 rounded-full bg-lingo-blue/15 text-lingo-blue px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                📚 In My Library
+              </span>
+            ) : null}
+          </div>
+
+          {showRemove && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRemoveFromLibrary();
+              }}
+              disabled={isActionPending}
+              className="text-xs font-bold text-red-500 hover:text-red-700 hover:underline disabled:opacity-50 transition-colors p-0.5 shrink-0 cursor-pointer"
+              title="Remove this unit from My Library"
+            >
+              {activeAction === "remove" ? (
+                <span className="flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 animate-spin rounded-full border border-red-500 border-t-transparent" />
+                  removing
+                </span>
+              ) : (
+                "(remove)"
+              )}
+            </button>
+          )}
+        </div>
+
         <div className="flex items-center gap-2 flex-wrap">
           <p className="font-bold text-lingo-text truncate">{unit.title}</p>
           {unit.questionType && (
             <QuestionTypeBadge questionType={unit.questionType} size="xs" />
           )}
-          {hasParseError && (
-            <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">
-              Can&apos;t be parsed
-            </span>
-          )}
-          {unit.isOwner ? (
-            <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                isPublic
-                  ? "bg-lingo-green/15 text-lingo-green"
-                  : "bg-lingo-gray text-lingo-text-light"
-              }`}
-            >
-              {isPublic ? "🌐 Public" : "🔒 Private"}
-            </span>
-          ) : unit.isInLibrary ? (
-            <span className="shrink-0 rounded-full bg-lingo-blue/15 text-lingo-blue px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-              📚 In My Library
-            </span>
-          ) : null}
         </div>
         <p className="text-sm text-lingo-text-light truncate">
           {unit.description}
@@ -238,8 +281,7 @@ function StandaloneUnitCard({
     </div>
   );
 
-  const showActions =
-    unit.isOwner || (isAdmin && isPublic) || (!unit.isOwner && unit.isInLibrary);
+  const showBottomActions = isOwner || (isAdmin && isPublic);
 
   return (
     <div
@@ -256,11 +298,8 @@ function StandaloneUnitCard({
           {cardContent}
         </Link>
       )}
-      {showActions && (
+      {showBottomActions && (
         <div className="border-t border-lingo-border px-4 py-2 flex flex-wrap items-center gap-2">
-          {(isPublic || unit.isOwner || isAdmin) && (
-            <CopyLinkButton path={`/unit/${unit.id}`} />
-          )}
           {(unit.isOwner || isAdmin) && (
             <>
               <Link
@@ -378,40 +417,6 @@ function StandaloneUnitCard({
                 )}
               </button>
             </>
-          )}
-
-          {/* Non-owner library units: Remove from My Library button */}
-          {!unit.isOwner && unit.isInLibrary && (
-            <button
-              onClick={handleRemoveFromLibrary}
-              disabled={isActionPending}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-              title="Remove this unit from My Library"
-            >
-              {activeAction === "remove" ? (
-                <>
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/30 border-t-red-500" />
-                  Removing...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="h-3.5 w-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                    />
-                  </svg>
-                  Remove from My Library
-                </>
-              )}
-            </button>
           )}
         </div>
       )}

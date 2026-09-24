@@ -264,7 +264,7 @@ export function PullToRefresh({
 
       {/* Main content with subtle pull transform offset */}
       <div
-        className="h-full"
+        className="min-h-full flex flex-col"
         style={{
           transform: `translateY(${isRefreshing ? 48 : pullDistance * 0.45}px)`,
           transition: isDragging ? "none" : "transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1)",

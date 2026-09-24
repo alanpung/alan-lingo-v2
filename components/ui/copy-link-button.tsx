@@ -1,12 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { Share2, Check } from "lucide-react";
 
 interface CopyLinkButtonProps {
   path: string;
+  className?: string;
+  size?: "default" | "sm" | "xs" | "icon";
+  showLabel?: boolean;
 }
 
-export function CopyLinkButton({ path }: CopyLinkButtonProps) {
+export function CopyLinkButton({
+  path,
+  className = "",
+  size = "xs",
+  showLabel = false,
+}: CopyLinkButtonProps) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy(e: React.MouseEvent) {
@@ -18,48 +27,37 @@ export function CopyLinkButton({ path }: CopyLinkButtonProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback: do nothing
+      // Fallback
     }
   }
 
   return (
     <button
+      type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-lingo-text-light bg-lingo-gray/50 hover:bg-lingo-gray transition-colors"
+      title={copied ? "Link copied!" : "Share / Copy link"}
+      aria-label={copied ? "Link copied" : "Share link"}
+      className={`inline-flex items-center justify-center gap-1 rounded-lg font-bold transition-all active:scale-95 cursor-pointer ${
+        copied
+          ? "bg-green-100 text-green-700 border border-green-300"
+          : "text-lingo-text-light hover:text-lingo-blue hover:bg-lingo-blue/10 bg-lingo-gray/40 border border-transparent"
+      } ${
+        size === "icon"
+          ? "p-1.5 h-7 w-7"
+          : size === "xs"
+          ? "px-2 py-1 text-[11px] h-6"
+          : "px-3 py-1.5 text-xs"
+      } ${className}`}
     >
       {copied ? (
         <>
-          <svg
-            className="h-3.5 w-3.5 text-lingo-green"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4.5 12.75l6 6 9-13.5"
-            />
-          </svg>
-          Copied!
+          <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />
+          {showLabel && <span>Copied!</span>}
         </>
       ) : (
         <>
-          <svg
-            className="h-3.5 w-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.813a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364L4.34 8.374"
-            />
-          </svg>
-          Copy Link
+          <Share2 className="h-3 w-3 shrink-0" />
+          {showLabel && <span>Share</span>}
         </>
       )}
     </button>
