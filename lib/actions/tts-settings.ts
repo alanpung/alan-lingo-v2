@@ -78,27 +78,41 @@ export async function saveVoiceSettings({
     throw new Error("Unauthorized: Only authors and admins can customize audio voices.");
   }
 
-  // Save voice selection
+  // Save voice selection for user and globally
   await db
     .insert(userMemory)
-    .values({
-      userId: session.user.id,
-      key: "tts:voice",
-      value: voiceName,
-    })
+    .values([
+      {
+        userId: session.user.id,
+        key: "tts:voice",
+        value: voiceName,
+      },
+      {
+        userId: session.user.id,
+        key: "global:tts:voice",
+        value: voiceName,
+      },
+    ])
     .onConflictDoUpdate({
       target: [userMemory.userId, userMemory.key],
       set: { value: voiceName, updatedAt: new Date() },
     });
 
-  // Save preset selection
+  // Save preset selection for user and globally
   await db
     .insert(userMemory)
-    .values({
-      userId: session.user.id,
-      key: "tts:preset",
-      value: presetId,
-    })
+    .values([
+      {
+        userId: session.user.id,
+        key: "tts:preset",
+        value: presetId,
+      },
+      {
+        userId: session.user.id,
+        key: "global:tts:preset",
+        value: presetId,
+      },
+    ])
     .onConflictDoUpdate({
       target: [userMemory.userId, userMemory.key],
       set: { value: presetId, updatedAt: new Date() },
@@ -112,11 +126,18 @@ export async function saveVoiceSettings({
 
   await db
     .insert(userMemory)
-    .values({
-      userId: session.user.id,
-      key: "prompt:tts-instructions",
-      value: instructionToSave,
-    })
+    .values([
+      {
+        userId: session.user.id,
+        key: "prompt:tts-instructions",
+        value: instructionToSave,
+      },
+      {
+        userId: session.user.id,
+        key: "global:prompt:tts-instructions",
+        value: instructionToSave,
+      },
+    ])
     .onConflictDoUpdate({
       target: [userMemory.userId, userMemory.key],
       set: { value: instructionToSave, updatedAt: new Date() },

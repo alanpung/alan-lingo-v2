@@ -8,8 +8,8 @@ import {
 } from "@/lib/prompts";
 import { detectTextLanguage } from "@/lib/language-detector";
 import { db } from "@/lib/db";
-import { userMemory } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { userMemory, audioCache } from "@/lib/db/schema";
+import { eq, or } from "drizzle-orm";
 
 // Lazy initialization of Gemini client
 let geminiClient: GoogleGenAI | null = null;
@@ -71,6 +71,51 @@ export function getCachedAudio(key: string): { buffer: Buffer; mimeType: string 
   return memoryAudioCache.get(key) ?? null;
 }
 
+/**
+ * Check persistent DB audio cache
+ */
+export async function getPersistentCachedAudio(
+  key: string
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  const mem = memoryAudioCache.get(key);
+  if (mem) return mem;
+
+  try {
+    const rows = await db
+      .select()
+      .from(audioCache)
+      .where(or(eq(audioCache.text, key), eq(audioCache.language, key)))
+      .limit(1);
+
+    if (rows.length > 0 && rows[0].r2Key) {
+      const raw = rows[0].r2Key;
+      let buffer: Buffer | null = null;
+      let mimeType = "audio/wav";
+
+      if (raw.startsWith("base64:wav:")) {
+        buffer = Buffer.from(raw.slice(11), "base64");
+        mimeType = "audio/wav";
+      } else if (raw.startsWith("base64:mp3:")) {
+        buffer = Buffer.from(raw.slice(11), "base64");
+        mimeType = "audio/mpeg";
+      } else if (raw.startsWith("base64:")) {
+        buffer = Buffer.from(raw.slice(7), "base64");
+        mimeType = "audio/wav";
+      }
+
+      if (buffer) {
+        const item = { buffer, mimeType };
+        memoryAudioCache.set(key, item);
+        return item;
+      }
+    }
+  } catch (err) {
+    console.warn("DB audio cache lookup error:", err);
+  }
+
+  return null;
+}
+
 export interface GenerateSpeechOptions {
   voiceName?: string;
   instructions?: string;
@@ -102,9 +147,10 @@ export async function generateSpeech(
   let selectedVoice = options?.voiceName;
   let customInstructions = options?.instructions;
 
-  // If not explicitly provided, check user preferences in database
+  // 1. If not explicitly provided, check database for user or owner/global preferences
   if (!selectedVoice || !customInstructions) {
     try {
+      // First check user's personal settings if provided
       if (options?.userId) {
         const records = await db
           .select()
@@ -116,6 +162,30 @@ export async function generateSpeech(
         }
         if (!customInstructions && map.has("prompt:tts-instructions")) {
           customInstructions = map.get("prompt:tts-instructions");
+        }
+      }
+
+      // If still not set, load the Global Default Voice configured by the author/owner
+      if (!selectedVoice || !customInstructions) {
+        const globalRecords = await db
+          .select()
+          .from(userMemory)
+          .where(
+            or(
+              eq(userMemory.key, "global:tts:voice"),
+              eq(userMemory.key, "global:prompt:tts-instructions"),
+              eq(userMemory.key, "tts:voice"),
+              eq(userMemory.key, "prompt:tts-instructions")
+            )
+          );
+        const globalMap = new Map(globalRecords.map((r) => [r.key, r.value]));
+        if (!selectedVoice) {
+          selectedVoice = globalMap.get("global:tts:voice") || globalMap.get("tts:voice");
+        }
+        if (!customInstructions) {
+          customInstructions =
+            globalMap.get("global:prompt:tts-instructions") ||
+            globalMap.get("prompt:tts-instructions");
         }
       }
     } catch {
@@ -141,7 +211,7 @@ export async function generateSpeech(
     .digest("hex");
   const cacheKey = `${resolvedLang}/${effectiveVoice}/${hash}`;
 
-  // Check cache first
+  // 2. Check memory cache first
   const existing = memoryAudioCache.get(cacheKey);
   if (existing && !options?.skipCache) {
     return {
@@ -151,7 +221,19 @@ export async function generateSpeech(
     };
   }
 
-  // Model fallback chain:
+  // 3. Check persistent database cache (survives restarts/deployments forever)
+  if (!options?.skipCache) {
+    const dbCached = await getPersistentCachedAudio(cacheKey);
+    if (dbCached) {
+      return {
+        url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
+        buffer: dbCached.buffer,
+        mimeType: dbCached.mimeType,
+      };
+    }
+  }
+
+  // 4. Model fallback chain:
   // 1. gemini-3.8-flash-tts
   // 2. gemini-3.8-flash-lite-tts
   // 3. OpenAI TTS (if key exists)
@@ -187,6 +269,23 @@ export async function generateSpeech(
           mimeType: "audio/wav",
         });
 
+        // Persist permanently in database so Gemini is NEVER called again for this phrase
+        try {
+          await db
+            .insert(audioCache)
+            .values({
+              text: cacheKey,
+              language: resolvedLang,
+              r2Key: `base64:wav:${wavBuffer.toString("base64")}`,
+            })
+            .onConflictDoUpdate({
+              target: [audioCache.text, audioCache.language],
+              set: { r2Key: `base64:wav:${wavBuffer.toString("base64")}` },
+            });
+        } catch (dbErr) {
+          console.warn("Could not write audio to database cache:", dbErr);
+        }
+
         return {
           url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
           buffer: wavBuffer,
@@ -200,7 +299,7 @@ export async function generateSpeech(
     }
   }
 
-  // Fallback to OpenAI TTS if available
+  // 5. Fallback to OpenAI TTS if available
   if (process.env.OPENAI_API_KEY) {
     try {
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -219,6 +318,23 @@ export async function generateSpeech(
         mimeType: "audio/mpeg",
       });
 
+      // Persist permanently in database
+      try {
+        await db
+          .insert(audioCache)
+          .values({
+            text: cacheKey,
+            language: resolvedLang,
+            r2Key: `base64:mp3:${mp3Buffer.toString("base64")}`,
+          })
+          .onConflictDoUpdate({
+            target: [audioCache.text, audioCache.language],
+            set: { r2Key: `base64:mp3:${mp3Buffer.toString("base64")}` },
+          });
+      } catch (dbErr) {
+        console.warn("Could not write audio to database cache:", dbErr);
+      }
+
       return {
         url: `/api/tts?key=${encodeURIComponent(cacheKey)}`,
         buffer: mp3Buffer,
@@ -229,10 +345,10 @@ export async function generateSpeech(
     }
   }
 
-  // If all server TTS options fail, rethrow with friendly description
+  // If all server TTS options fail, rethrow with descriptive message
   const message =
     lastError instanceof Error
       ? lastError.message
-      : "Audio service temporarily rate-limited. Please wait a few seconds and try again.";
+      : "Audio service temporarily rate-limited. Falling back to browser speech synthesis.";
   throw new Error(message);
 }

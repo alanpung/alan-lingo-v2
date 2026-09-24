@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateSpeech, getCachedAudio } from "@/lib/tts";
+import { generateSpeech, getCachedAudio, getPersistentCachedAudio } from "@/lib/tts";
 import { getAudio } from "@/lib/r2";
 import { getSession } from "@/lib/auth-server";
 
@@ -20,7 +20,18 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // 2. Check Cloudflare R2 if configured
+  // 2. Check persistent database audio cache
+  const dbCached = await getPersistentCachedAudio(key);
+  if (dbCached) {
+    return new NextResponse(new Uint8Array(dbCached.buffer), {
+      headers: {
+        "Content-Type": dbCached.mimeType || "audio/wav",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
+  }
+
+  // 3. Check Cloudflare R2 if configured
   const buffer = await getAudio(key);
   if (buffer) {
     return new NextResponse(new Uint8Array(buffer), {
