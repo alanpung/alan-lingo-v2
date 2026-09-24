@@ -46,6 +46,20 @@ function speakWithBrowserSynth(text: string, language: string) {
   }
 }
 
+// Global mobile audio unlocker: unlocks HTML5 audio on first touch gesture
+if (typeof window !== "undefined") {
+  const unlockAudio = () => {
+    try {
+      const silentAudio = new Audio();
+      silentAudio.src =
+        "data:audio/wav;base64,UklGRiQAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+      silentAudio.play().catch(() => {});
+    } catch {}
+  };
+  window.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
+  window.addEventListener("click", unlockAudio, { once: true, passive: true });
+}
+
 export function useAudio() {
   const currentAudio = useRef<HTMLAudioElement | null>(null);
   const nonceRef = useRef(0);
@@ -134,10 +148,23 @@ export function useAudio() {
 
       try {
         await audio.play();
-      } catch (playErr) {
-        console.warn("audio.play() error:", playErr);
-        if (nonce === nonceRef.current) {
-          speakWithBrowserSynth(text, resolvedLang);
+      } catch (playErr: unknown) {
+        const isNotAllowed =
+          playErr instanceof Error &&
+          (playErr.name === "NotAllowedError" ||
+            playErr.message.toLowerCase().includes("interact") ||
+            playErr.message.toLowerCase().includes("gesture"));
+
+        if (isNotAllowed) {
+          // Mobile browser autoplay policy blocked audio without a user gesture.
+          // Do NOT replace the AI voice with the phone's robotic Siri/Android voice!
+          // When the student taps "Listen" or touches the card, the real AI voice will play.
+          console.info("Mobile autoplay blocked; waiting for user touch gesture.");
+        } else {
+          console.warn("audio.play() error, falling back to speech synthesis:", playErr);
+          if (nonce === nonceRef.current) {
+            speakWithBrowserSynth(text, resolvedLang);
+          }
         }
       }
     },

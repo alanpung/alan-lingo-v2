@@ -8,7 +8,7 @@ import {
 } from "@/lib/prompts";
 import { detectTextLanguage } from "@/lib/language-detector";
 import { db } from "@/lib/db";
-import { userMemory, audioCache } from "@/lib/db/schema";
+import { userMemory, audioCache, user } from "@/lib/db/schema";
 import { eq, or } from "drizzle-orm";
 
 // Lazy initialization of Gemini client
@@ -38,10 +38,9 @@ const memoryAudioCache = new Map<string, { buffer: Buffer; mimeType: string }>()
  * Cleans raw 16-bit linear PCM audio to eliminate clicks, pops, DC offset, and buzz:
  * 1. Enforces 16-bit sample alignment.
  * 2. Removes any DC offset / voltage bias.
- * 3. Applies a smooth Hann window fade-in over the first 20ms (eliminates start click/buzz).
- * 4. Applies a smooth Hann window fade-out over the last 25ms (eliminates cutoff pop/buzz).
- * 5. Prepends 25ms and appends 35ms of digital silence padding, allowing browser DACs
- *    to unmute/mute seamlessly without gating distortion.
+ * 3. Applies a rapid 5ms Hann window micro-fade-in (eliminates start click without clipping onset phonemes).
+ * 4. Applies a rapid 5ms Hann window micro-fade-out (eliminates cutoff pop without cutting final consonants).
+ * 5. Minimal 5ms digital silence padding so audio hardware transitions cleanly without delay.
  */
 export function cleanAndSmoothPcm(
   rawBuffer: Buffer,
@@ -70,10 +69,10 @@ export function cleanAndSmoothPcm(
     }
   }
 
-  // 2. Smooth fade-in (first 20ms = ~480 samples at 24kHz)
+  // 2. Ultra-short 5ms micro-fade-in (~120 samples at 24kHz) to protect crucial initial word sounds
   const fadeInSamples = Math.min(
-    Math.floor((sampleRate * 20) / 1000),
-    Math.floor(numSamples / 4)
+    Math.floor((sampleRate * 5) / 1000),
+    Math.floor(numSamples / 8)
   );
   if (fadeInSamples > 0) {
     for (let i = 0; i < fadeInSamples; i++) {
@@ -82,10 +81,10 @@ export function cleanAndSmoothPcm(
     }
   }
 
-  // 3. Smooth fade-out (last 25ms = ~600 samples at 24kHz)
+  // 3. Ultra-short 5ms micro-fade-out (~120 samples at 24kHz) to protect ending word sounds
   const fadeOutSamples = Math.min(
-    Math.floor((sampleRate * 25) / 1000),
-    Math.floor(numSamples / 4)
+    Math.floor((sampleRate * 5) / 1000),
+    Math.floor(numSamples / 8)
   );
   if (fadeOutSamples > 0) {
     for (let i = 0; i < fadeOutSamples; i++) {
@@ -95,9 +94,9 @@ export function cleanAndSmoothPcm(
     }
   }
 
-  // 4. Digital silence padding: 25ms lead-in + 35ms lead-out
-  const leadInSilence = Math.floor((sampleRate * 25) / 1000);
-  const leadOutSilence = Math.floor((sampleRate * 35) / 1000);
+  // 4. Minimal 5ms digital silence padding (120 samples)
+  const leadInSilence = Math.floor((sampleRate * 5) / 1000);
+  const leadOutSilence = Math.floor((sampleRate * 5) / 1000);
   const totalSamples = leadInSilence + numSamples + leadOutSilence;
 
   const resultBuffer = Buffer.alloc(totalSamples * 2);
@@ -282,7 +281,30 @@ export async function generateSpeech(
         }
       }
 
-      // If still not set, load the Global Default Voice configured by the author/owner
+      // 2. Load the Author's (alan.pung@gmail.com) exact voice settings so students always match the author
+      if (!selectedVoice || !customInstructions) {
+        try {
+          const authorRows = await db
+            .select({ key: userMemory.key, value: userMemory.value })
+            .from(userMemory)
+            .innerJoin(user, eq(userMemory.userId, user.id))
+            .where(eq(user.email, "alan.pung@gmail.com"));
+
+          const authorMap = new Map(authorRows.map((r) => [r.key, r.value]));
+          if (!selectedVoice) {
+            selectedVoice = authorMap.get("tts:voice") || authorMap.get("global:tts:voice");
+          }
+          if (!customInstructions) {
+            customInstructions =
+              authorMap.get("prompt:tts-instructions") ||
+              authorMap.get("global:prompt:tts-instructions");
+          }
+        } catch {
+          // Fallback if query fails
+        }
+      }
+
+      // 3. Fallback to any global setting in userMemory
       if (!selectedVoice || !customInstructions) {
         const globalRecords = await db
           .select()
