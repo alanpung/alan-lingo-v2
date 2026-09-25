@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 const navItems = [
@@ -27,8 +28,18 @@ export function Sidebar({ showChat = true, showRead = true }: SidebarProps) {
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 border-r-2 border-lingo-border bg-white">
       <div className="flex h-16 items-center px-6">
-        <Link href="/library" className="text-2xl font-black text-rainbow tracking-tight">
-          AlingoPro
+        <Link href="/library" className="flex items-center gap-2.5 group">
+          <Image
+            src="/icon.svg"
+            alt="AlingoPro Mascot"
+            width={36}
+            height={36}
+            className="w-9 h-9 transition-transform group-hover:scale-105"
+            priority
+          />
+          <span className="text-2xl font-black text-rainbow tracking-tight">
+            AlingoPro
+          </span>
         </Link>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">

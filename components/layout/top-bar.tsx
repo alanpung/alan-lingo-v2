@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 
@@ -23,8 +24,18 @@ export function TopBar({ stats }: TopBarProps) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b-2 border-lingo-border bg-white px-4 md:px-6">
       <div className="md:hidden">
-        <Link href="/library" className="text-xl font-black text-rainbow tracking-tight">
-          AlingoPro
+        <Link href="/library" className="flex items-center gap-2">
+          <Image
+            src="/icon.svg"
+            alt="AlingoPro Mascot"
+            width={32}
+            height={32}
+            className="w-8 h-8"
+            priority
+          />
+          <span className="text-xl font-black text-rainbow tracking-tight">
+            AlingoPro
+          </span>
         </Link>
       </div>
 

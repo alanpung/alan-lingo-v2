@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+import sharp from 'sharp';
+import fs from 'fs';
+import path from 'path';
+
+const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <!-- Outer Bubble Gradient -->
     <linearGradient id="bubbleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -99,4 +103,56 @@
     <circle cx="362" cy="138" r="5" fill="url(#goldGrad)" />
     <path d="M 357 142 L 354 220 L 370 220 L 367 142 Z" fill="url(#goldGrad)" />
   </g>
-</svg>
+</svg>`;
+
+async function buildIcons() {
+  const publicDir = path.join(process.cwd(), 'public');
+  const appDir = path.join(process.cwd(), 'app');
+
+  // Save SVG files
+  fs.writeFileSync(path.join(publicDir, 'icon.svg'), svgContent);
+  fs.writeFileSync(path.join(appDir, 'icon.svg'), svgContent);
+  console.log('Saved SVG files.');
+
+  // Convert to PNGs
+  const svgBuffer = Buffer.from(svgContent);
+
+  await sharp(svgBuffer).resize(192, 192).png().toFile(path.join(publicDir, 'icon-192.png'));
+  console.log('Generated icon-192.png');
+
+  await sharp(svgBuffer).resize(512, 512).png().toFile(path.join(publicDir, 'icon-512.png'));
+  console.log('Generated icon-512.png');
+
+  await sharp(svgBuffer).resize(180, 180).png().toFile(path.join(publicDir, 'apple-touch-icon.png'));
+  console.log('Generated apple-touch-icon.png');
+
+  // Generate favicon.ico / 32x32 PNG if needed
+  await sharp(svgBuffer).resize(32, 32).png().toFile(path.join(publicDir, 'favicon.ico'));
+  console.log('Generated favicon.ico');
+
+  // OG Image (1200x630 with branding)
+  const ogSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+    <rect width="1200" height="630" fill="#0F172A" />
+    <!-- Background Glow -->
+    <circle cx="350" cy="315" r="300" fill="#0066FF" opacity="0.15" />
+    <circle cx="850" cy="315" r="250" fill="#00A8FF" opacity="0.1" />
+
+    <!-- Embedded Mascot Logo -->
+    <g transform="translate(120, 115) scale(0.78)">
+      ${svgContent.replace(/<svg[^>]*>/, '').replace('</svg>', '')}
+    </g>
+
+    <!-- Text Branding -->
+    <text x="560" y="290" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="88" fill="#FFFFFF" letter-spacing="-2">
+      Alingo<tspan fill="#00A8FF">Pro</tspan>
+    </text>
+    <text x="560" y="360" font-family="system-ui, -apple-system, sans-serif" font-weight="600" font-size="32" fill="#94A3B8">
+      AI-Powered Interactive Language Learning
+    </text>
+  </svg>`;
+
+  await sharp(Buffer.from(ogSvg)).resize(1200, 630).png().toFile(path.join(publicDir, 'og-image.png'));
+  console.log('Generated og-image.png');
+}
+
+buildIcons().catch(console.error);

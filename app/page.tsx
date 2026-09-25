@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getSession } from "@/lib/auth-server";
 import { DEFAULT_PATH } from "@/lib/constants";
 import { FeedbackButton } from "@/components/feedback/feedback-button";
@@ -70,8 +71,16 @@ export default async function LandingPage() {
       {/* Main content */}
       <main className="max-w-4xl w-full text-center flex flex-col items-center justify-center my-auto pt-6 pb-8">
         {/* Header */}
-        <div className="overflow-visible mb-8">
-          <h1 className="relative z-20 text-6xl font-black text-rainbow tracking-tight pb-2 inline-block leading-snug overflow-visible">
+        <div className="overflow-visible mb-6 flex flex-col items-center gap-3">
+          <Image
+            src="/icon.svg"
+            alt="AlingoPro Mascot"
+            width={100}
+            height={100}
+            className="w-24 h-24 drop-shadow-md animate-bounce-short"
+            priority
+          />
+          <h1 className="relative z-20 text-6xl font-black text-rainbow tracking-tight pb-1 inline-block leading-snug overflow-visible">
             AlingoPro
           </h1>
         </div>
