@@ -167,16 +167,16 @@ export function cleanAndSmoothPcm(
       const abs = Math.abs(samples[j]);
       if (abs > peak) peak = abs;
     }
-    // Threshold for vocal activity (amplitude > 150 out of 32767)
-    if (peak > 150) {
+    // Threshold for vocal activity: raised to 450 to cleanly ignore Gemini's persistent vocoder static/buzz
+    if (peak > 450) {
       lastActiveSample = i;
       break;
     }
   }
 
-  // Preserve generous 70ms natural acoustic decay cushion (~1680 samples at 24kHz)
+  // Preserve generous 60ms natural acoustic decay cushion (~1440 samples at 24kHz)
   // This guarantees soft ending consonants ('t', 's', 'k', 'p', 'th', 'd') are NEVER clipped.
-  const cushionSamples = Math.floor((sampleRate * 70) / 1000);
+  const cushionSamples = Math.floor((sampleRate * 60) / 1000);
   const minSilence = Math.floor((sampleRate * 5) / 1000);
 
   const trailing = numSamples - 1 - lastActiveSample;
@@ -196,15 +196,12 @@ export function cleanAndSmoothPcm(
     }
   }
 
-  // 4. Smooth 15ms micro-fade-out to zero to prevent trailing click or buzz
-  const fadeOutSamples = Math.min(
-    Math.floor((sampleRate * 15) / 1000),
-    Math.floor(effectiveEndSample / 4)
-  );
+  // 4. Smooth fade-out starting at lastActiveSample to effectiveEndSample to completely dissolve any buzz or static
+  const fadeOutSamples = effectiveEndSample - lastActiveSample;
   if (fadeOutSamples > 0) {
     for (let i = 0; i < fadeOutSamples; i++) {
-      const idx = effectiveEndSample - 1 - i;
-      const factor = 0.5 * (1 - Math.cos((Math.PI * i) / fadeOutSamples));
+      const idx = lastActiveSample + i;
+      const factor = 0.5 * (1 + Math.cos((Math.PI * i) / fadeOutSamples));
       samples[idx] = Math.round(samples[idx] * factor);
     }
   }
