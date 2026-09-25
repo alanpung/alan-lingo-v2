@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const unit = await getUnitWithContent(unitId);
 
   if (!unit || unit.visibility !== "public") {
-    return { title: "Unit | OpenLingo" };
+    return { title: "Unit | AlingoPro" };
   }
 
   const lessonCount = unit.lessons.length;
@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     ? `${unit.description} — ${details}`
     : unit.description;
 
-  const title = `${unit.title} | OpenLingo`;
+  const title = `${unit.title} | AlingoPro`;
 
   const url = `/unit/${unitId}`;
 
@@ -50,7 +50,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       url,
       type: "website",
-      siteName: "OpenLingo",
+      siteName: "AlingoPro",
       images: [
         {
           url: `/unit/${unitId}/og-image`,

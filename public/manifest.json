@@ -1,6 +1,6 @@
 {
-  "name": "OpenLingo",
-  "short_name": "OpenLingo",
+  "name": "AlingoPro",
+  "short_name": "AlingoPro",
   "description": "OpenSource AI connected to language learning",
   "start_url": "/",
   "display": "standalone",

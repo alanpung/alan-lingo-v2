@@ -164,7 +164,7 @@ export async function previewVoiceAudio({
 
   const text =
     sampleText ||
-    "Hello! Welcome to AlanLingo. Master new languages with intelligence, confidence, and natural flow.";
+    "Hello! Welcome to AlingoPro. Master new languages with intelligence, confidence, and natural flow.";
 
   try {
     const result = await generateSpeech(text, language, {

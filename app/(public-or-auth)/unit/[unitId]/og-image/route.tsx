@@ -125,7 +125,7 @@ export async function GET(
               color: "#58CC02",
             }}
           >
-            OpenLingo
+            AlingoPro
           </div>
         </div>
       </div>

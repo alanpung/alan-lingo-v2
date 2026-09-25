@@ -72,7 +72,7 @@ export default async function LandingPage() {
         {/* Header */}
         <div className="overflow-visible mb-8">
           <h1 className="relative z-20 text-6xl font-black text-rainbow tracking-tight pb-2 inline-block leading-snug overflow-visible">
-            AlanLingo
+            AlingoPro
           </h1>
         </div>
 

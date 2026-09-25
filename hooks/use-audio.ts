@@ -111,6 +111,7 @@ function speakWithBrowserSynth(text: string, language: string) {
 export function useAudio() {
   const currentAudioElement = useRef<HTMLAudioElement | null>(null);
   const nonceRef = useRef(0);
+  const playRef = useRef<(text: string, language: string) => Promise<void>>(async () => {});
   const [loading, setLoading] = useState(false);
 
   const stop = useCallback(() => {
@@ -339,7 +340,7 @@ export function useAudio() {
           pendingMobilePlayback = {
             text,
             language: resolvedLang,
-            playFn: () => play(text, language),
+            playFn: () => { playRef.current(text, language); },
           };
           console.info("Mobile autoplay deferred until user touches screen.");
         } else {
@@ -353,6 +354,8 @@ export function useAudio() {
     },
     [stop, fetchUrl, playWithWebAudio]
   );
+
+  playRef.current = play;
 
   const prefetch = useCallback(
     (texts: string[], language: string) => {
