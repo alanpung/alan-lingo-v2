@@ -17,15 +17,59 @@ const QUALITY_BUTTONS: { label: string; quality: Quality; color: string }[] = [
   { label: "Easy", quality: 5, color: "bg-lingo-green hover:bg-lingo-green/90" },
 ];
 
-function cleanTextForTTS(raw: string): string {
+function cleanTextForTTS(raw: string, isTargetLanguageNonLatin: boolean): string {
   if (!raw) return "";
-  return raw
-    .replace(/\\n/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // markdown links -> text
-    .replace(/[#*_`~[\]()]/g, "")
+  let text = raw.replace(/\\n/g, "\n");
+  
+  // If it contains multiple lines, and some lines are Latin/pinyin/brackets while others are Chinese/non-Latin,
+  // we prioritize the non-Latin line to prevent the TTS from reading pinyin/translation out loud.
+  if (text.includes("\n")) {
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    const nonLatinLines = lines.filter((l) => /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/u.test(l));
+    if (nonLatinLines.length > 0) {
+      text = nonLatinLines.join(" ");
+    } else {
+      text = lines[0];
+    }
+  }
+
+  // Strip brackets, parentheses, and brace contents (often containing translations or romanization)
+  text = text.replace(/\([^)]*\)/g, "");
+  text = text.replace(/\[[^\]]*\]/g, "");
+  text = text.replace(/\{[^}]*\}/g, "");
+
+  // If the language is non-Latin and we have native characters, strip any remaining Latin letters/accents
+  if (
+    isTargetLanguageNonLatin &&
+    /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff\u0900-\u097f]/u.test(text)
+  ) {
+    text = text.replace(/[a-zA-Záéíóúāēīōūǎěǐǒǔàèìòù]/g, "");
+  }
+
+  return text
+    .replace(/[#*_`~]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
+
+const nonLatinLanguages = new Set([
+  "mandarin",
+  "chinese",
+  "zh",
+  "japanese",
+  "japanese-kanji",
+  "japanese-hiragana",
+  "japanese-katakana",
+  "ja",
+  "korean",
+  "ko",
+  "arabic",
+  "ar",
+  "hindi",
+  "hi",
+  "russian",
+  "ru",
+]);
 
 function parseFlashcardContent(exercise: FlashcardReviewExercise): {
   meaning: string;
@@ -99,16 +143,29 @@ export function FlashcardReview({
 
   const { meaning, translation } = parseFlashcardContent(exercise);
 
-  const frontTTS = cleanTextForTTS(exercise?.front || "");
-  const backTTS = cleanTextForTTS(exercise?.back || meaning || "");
+  const isNonLatin = nonLatinLanguages.has(language?.toLowerCase());
 
-  // Prefetch both sides of the flashcard immediately
+  const frontTTS = cleanTextForTTS(exercise?.front || "", isNonLatin);
+  const backTTS = cleanTextForTTS(exercise?.back || meaning || "", false); // English meaning
+  const translationTTS = cleanTextForTTS(translation || "", true); // Chinese/non-Latin translation
+
+  // Prefetch all elements of the flashcard immediately with correct languages
   useEffect(() => {
-    const toFetch: string[] = [];
-    if (frontTTS && !exercise?.noAudio?.includes("front")) toFetch.push(frontTTS);
-    if (backTTS && !exercise?.noAudio?.includes("back")) toFetch.push(backTTS);
-    if (toFetch.length > 0) prefetch(toFetch, language);
-  }, [frontTTS, backTTS, exercise?.noAudio, language, prefetch]);
+    const toFetch: { text: string; lang: string }[] = [];
+    if (frontTTS && !exercise?.noAudio?.includes("front")) {
+      toFetch.push({ text: frontTTS, lang: language });
+    }
+    if (backTTS && !exercise?.noAudio?.includes("back")) {
+      toFetch.push({ text: backTTS, lang: "en" });
+    }
+    if (translationTTS && !exercise?.noAudio?.includes("translation")) {
+      toFetch.push({ text: translationTTS, lang: "zh" });
+    }
+
+    toFetch.forEach(({ text, lang }) => {
+      prefetch([text], lang);
+    });
+  }, [frontTTS, backTTS, translationTTS, exercise?.noAudio, language, prefetch]);
 
   // Auto-play front audio when the flashcard is displayed
   useEffect(() => {
@@ -132,10 +189,20 @@ export function FlashcardReview({
     (e?: React.MouseEvent) => {
       e?.stopPropagation();
       if (backTTS) {
-        play(backTTS, language);
+        play(backTTS, "en"); // Speak English meaning using standard "en" locale for clean, buzz-free speech
       }
     },
-    [backTTS, language, play]
+    [backTTS, play]
+  );
+
+  const handlePlayTranslation = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      if (translationTTS) {
+        play(translationTTS, "zh"); // Speak Chinese translation using standard "zh" locale for clean, buzz-free speech
+      }
+    },
+    [translationTTS, play]
   );
 
   // Keyboard shortcut to replay audio ('r' or 'a')
@@ -220,7 +287,13 @@ export function FlashcardReview({
           <div className="mt-6 pt-5 border-t-2 border-lingo-border space-y-3.5 text-left">
             {/* Meaning Row directly below the word */}
             {meaning && (
-              <div className="rounded-xl bg-lingo-bg/60 p-3.5 border border-lingo-border/60">
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePlayBack();
+                }}
+                className="rounded-xl bg-lingo-bg/60 p-3.5 border border-lingo-border/60 cursor-pointer hover:bg-lingo-blue/5 transition-all select-none"
+              >
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-lingo-blue">
                     Meaning
@@ -230,7 +303,7 @@ export function FlashcardReview({
                       <span className="text-[10px] font-semibold text-lingo-text-light">
                         Audio
                       </span>
-                      <ReplayButton onPlay={() => handlePlayBack()} />
+                      <ReplayButton onPlay={handlePlayBack} />
                     </div>
                   )}
                 </div>
@@ -242,9 +315,25 @@ export function FlashcardReview({
 
             {/* Translation Row in Chinese in another row below meaning */}
             {translation && (
-              <div className="rounded-xl bg-lingo-card p-3.5 border border-lingo-border/60">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-lingo-green-dark mb-1">
-                  Translation (中文)
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePlayTranslation();
+                }}
+                className="rounded-xl bg-lingo-card p-3.5 border border-lingo-border/60 cursor-pointer hover:bg-lingo-green/5 transition-all select-none"
+              >
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-lingo-green-dark">
+                    Translation (中文)
+                  </span>
+                  {translationTTS && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-semibold text-lingo-text-light">
+                        Audio
+                      </span>
+                      <ReplayButton onPlay={handlePlayTranslation} />
+                    </div>
+                  )}
                 </div>
                 <div className="prose prose-base font-bold text-lingo-text [&>p]:m-0">
                   <Markdown remarkPlugins={[remarkBreaks]}>{translation}</Markdown>
