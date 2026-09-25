@@ -11,9 +11,8 @@ import { ReplayButton } from "@/components/replay-button";
 import { AudioSpinner } from "@/components/audio-spinner";
 
 const QUALITY_BUTTONS: { label: string; quality: Quality; color: string }[] = [
-  { label: "Again", quality: 0, color: "bg-red-500 hover:bg-red-600" },
-  { label: "Hard", quality: 3, color: "bg-orange-500 hover:bg-orange-600" },
-  { label: "Good", quality: 4, color: "bg-lingo-blue hover:bg-lingo-blue/90" },
+  { label: "Hard", quality: 3, color: "bg-red-500 hover:bg-red-600" },
+  { label: "OK", quality: 4, color: "bg-lingo-blue hover:bg-lingo-blue/90" },
   { label: "Easy", quality: 5, color: "bg-lingo-green hover:bg-lingo-green/90" },
 ];
 
@@ -355,7 +354,7 @@ export function FlashcardReview({
           <p className="text-center text-xs font-bold text-lingo-text-light uppercase tracking-wider mb-2">
             How well did you know this?
           </p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {QUALITY_BUTTONS.map((btn) => (
               <button
                 key={btn.quality}

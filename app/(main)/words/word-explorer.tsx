@@ -66,7 +66,7 @@ const POS_LABELS: Record<string, string> = {
   numeral: "Num",
 };
 
-type Tab = "all" | "my-words";
+type Tab = "all" | "my-words" | "stats";
 type SrsFilter = "all" | "due" | "new" | "learning" | "learned";
 
 export function WordExplorer({
@@ -119,12 +119,26 @@ export function WordExplorer({
         >
           Add Words
         </button>
+        <button
+          onClick={() => setTab("stats")}
+          className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
+            tab === "stats"
+              ? "bg-lingo-blue text-white"
+              : "text-lingo-text-light hover:text-lingo-text"
+          }`}
+        >
+          📊 Stats
+        </button>
       </div>
 
-      {tab === "all" ? (
+      {tab === "all" && (
         <AllWordsTab words={words} srsCards={srsCards} language={language} />
-      ) : (
+      )}
+      {tab === "my-words" && (
         <MyWordsTab srsCards={srsCards} srsStats={srsStats} language={language} />
+      )}
+      {tab === "stats" && (
+        <StatsTab words={words} srsCards={srsCards} />
       )}
     </div>
   );
@@ -773,4 +787,438 @@ function formatRelativeDate(date: Date, now: Date): string {
   if (days < 30) return `${days}d`;
   if (days < 365) return `${Math.round(days / 30)}mo`;
   return `${(days / 365).toFixed(1)}yr`;
+}
+
+type CefrLevelFilter = "A1" | "A2" | "B1" | "B2" | "C1_C2";
+
+const LEVEL_CONFIGS: Record<
+  CefrLevelFilter,
+  {
+    label: string;
+    shortLabel: string;
+    defaultGoal: number;
+    cefrLevels: string[];
+    icon: string;
+    description: string;
+  }
+> = {
+  A1: {
+    label: "A1 · Beginner",
+    shortLabel: "A1",
+    defaultGoal: 1000,
+    cefrLevels: ["A1"],
+    icon: "🌱",
+    description: "Beginner vocabulary core",
+  },
+  A2: {
+    label: "A2 · Elementary",
+    shortLabel: "A2",
+    defaultGoal: 1750,
+    cefrLevels: ["A2"],
+    icon: "🌿",
+    description: "Elementary vocabulary core",
+  },
+  B1: {
+    label: "B1 · Intermediate",
+    shortLabel: "B1",
+    defaultGoal: 2000,
+    cefrLevels: ["B1"],
+    icon: "📘",
+    description: "Intermediate practical usage",
+  },
+  B2: {
+    label: "B2 · Upper Intermediate",
+    shortLabel: "B2",
+    defaultGoal: 2500,
+    cefrLevels: ["B2"],
+    icon: "📈",
+    description: "Upper intermediate communication",
+  },
+  C1_C2: {
+    label: "C1 + C2 · Advanced",
+    shortLabel: "C1 + C2",
+    defaultGoal: 3000,
+    cefrLevels: ["C1", "C2"],
+    icon: "🎓",
+    description: "Advanced native fluency mastery",
+  },
+};
+
+function StatsTab({
+  words,
+  srsCards,
+}: {
+  words: Word[];
+  srsCards: SrsCard[];
+}) {
+  const [selectedLevel, setSelectedLevel] = useState<CefrLevelFilter>("A2");
+
+  const levelConfig = LEVEL_CONFIGS[selectedLevel];
+
+  // Filter dictionary words that match this level's CEFR classifications
+  const levelWords = useMemo(() => {
+    return words.filter((w) => levelConfig.cefrLevels.includes(w.cefr_level));
+  }, [words, levelConfig]);
+
+  // Total words for this level (fallback to preset goal if no words are matched in local dict)
+  const totalLevelCount = Math.max(levelConfig.defaultGoal, levelWords.length);
+
+  // Filter user's active SRS cards that map to these words
+  const levelCards = useMemo(() => {
+    const wordSet = new Set(levelWords.map((w) => w.word));
+    return srsCards.filter((c) => wordSet.has(c.word));
+  }, [srsCards, levelWords]);
+
+  const savedLevelCount = levelCards.length;
+
+  // Breakdown saved cards into statuses
+  const newLevelCount = levelCards.filter((c) => c.status === "new").length;
+  const learningLevelCount = levelCards.filter((c) => c.status === "learning").length;
+  const learnedLevelCount = levelCards.filter((c) => c.status === "review").length;
+
+  const now = useMemo(() => new Date(), []);
+  const dueLevelCount = levelCards.filter(
+    (c) => c.nextReviewAt && new Date(c.nextReviewAt) <= now && c.status !== "new"
+  ).length;
+
+  const remainingLevelCount = Math.max(0, totalLevelCount - savedLevelCount);
+
+  // Difficulty profile assessment
+  const performanceBreakdown = useMemo(() => {
+    let easyCount = 0;
+    let okCount = 0;
+    let hardCount = 0;
+
+    levelCards.forEach((c) => {
+      if (c.status === "new") return;
+      if (c.easeFactor >= 2.6 || c.interval >= 6) {
+        easyCount++;
+      } else if (c.easeFactor >= 2.2 && c.interval >= 2) {
+        okCount++;
+      } else {
+        hardCount++;
+      }
+    });
+
+    return { easyCount, okCount, hardCount };
+  }, [levelCards]);
+
+  const masteryPercentage = totalLevelCount > 0 ? Math.round((learnedLevelCount / totalLevelCount) * 100) : 0;
+  const savedPercentage = totalLevelCount > 0 ? Math.round((savedLevelCount / totalLevelCount) * 100) : 0;
+
+  // Level-specific study recommendations
+  const studySuggestion = useMemo(() => {
+    const cleanLevelName = levelConfig.shortLabel;
+    if (savedLevelCount === 0) {
+      return {
+        title: `Kickstart Your ${cleanLevelName} Journey!`,
+        text: `You haven't saved any ${cleanLevelName} vocabulary words yet. Go to the 'Add Words' tab, filter by '${cleanLevelName}', and bookmark some terms to load your first flashcards!`,
+        icon: "🌱",
+      };
+    }
+    if (dueLevelCount > 0) {
+      return {
+        title: `Review Due ${cleanLevelName} Cards!`,
+        text: `You have ${dueLevelCount} flashcards at the ${cleanLevelName} level scheduled for review. Practicing today maintains your SRS retention pathway.`,
+        icon: "⚡",
+      };
+    }
+    if (masteryPercentage < 10) {
+      return {
+        title: "Build Steady Habits",
+        text: `You've begun saving ${cleanLevelName} level words. Make sure to review them daily so they mature and graduate from 'Learning' to 'Learned'!`,
+        icon: "📚",
+      };
+    }
+    if (masteryPercentage < 50) {
+      return {
+        title: "Progressing Nicely!",
+        text: `Your ${cleanLevelName} elementary comprehension is growing! You have successfully learned ${learnedLevelCount} words. Continue daily sessions to cross 50%!`,
+        icon: "🏆",
+      };
+    }
+    if (masteryPercentage < 90) {
+      return {
+        title: "Aim for High Fluency",
+        text: `Excellent grasp of core ${cleanLevelName} structures. Just a few more review iterations and units to achieve full mastery of this level!`,
+        icon: "🔥",
+      };
+    }
+    return {
+      title: "Level Fully Mastered!",
+      text: `Incredible! You have fully mastered over 90% of your target ${cleanLevelName} core vocabulary. You are ready to explore higher proficiency levels!`,
+      icon: "⭐",
+    };
+  }, [savedLevelCount, dueLevelCount, masteryPercentage, learnedLevelCount, levelConfig]);
+
+  return (
+    <div className="space-y-6">
+      {/* Horizontal Level Selection Pill Grid */}
+      <div className="rounded-2xl border-2 border-lingo-border bg-white p-2 shadow-sm">
+        <p className="text-xs font-bold text-lingo-text-light uppercase tracking-wider mb-2 px-2">
+          Select CEFR Proficiency Level
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {(Object.keys(LEVEL_CONFIGS) as CefrLevelFilter[]).map((levelKey) => {
+            const conf = LEVEL_CONFIGS[levelKey];
+            const isActive = selectedLevel === levelKey;
+            return (
+              <button
+                key={levelKey}
+                onClick={() => setSelectedLevel(levelKey)}
+                className={`flex-1 min-w-[70px] sm:min-w-[90px] py-2 px-2 rounded-xl text-xs font-bold border-2 transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-lingo-blue border-lingo-blue text-white shadow-sm scale-[1.02]"
+                    : "bg-lingo-gray/10 border-transparent text-lingo-text-light hover:bg-lingo-gray/25 hover:text-lingo-text"
+                }`}
+              >
+                <div className="text-sm mb-0.5">{conf.icon}</div>
+                <div>{conf.shortLabel}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Dynamic Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Mastery Overview */}
+        <div className="rounded-2xl border-2 border-lingo-border bg-white p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-lingo-text-light uppercase tracking-wider">
+                {levelConfig.shortLabel} Mastery Rate
+              </h3>
+              <span className="text-xl">🏆</span>
+            </div>
+            <p className="text-4xl font-black text-lingo-green-dark">{masteryPercentage}%</p>
+            <p className="text-xs text-lingo-text-light mt-1">
+              {learnedLevelCount} of {totalLevelCount} words fully learned
+            </p>
+          </div>
+          <div className="mt-4 h-3 w-full bg-lingo-gray/30 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-lingo-green-dark transition-all duration-500"
+              style={{ width: `${masteryPercentage}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Saved Count */}
+        <div className="rounded-2xl border-2 border-lingo-border bg-white p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-lingo-text-light uppercase tracking-wider">
+                Words Saved
+              </h3>
+              <span className="text-xl">🎴</span>
+            </div>
+            <p className="text-4xl font-black text-lingo-blue">{savedLevelCount}</p>
+            <p className="text-xs text-lingo-text-light mt-1">
+              {savedPercentage}% of target {levelConfig.shortLabel} vocabulary ({totalLevelCount} total)
+            </p>
+          </div>
+          <div className="mt-4 h-3 w-full bg-lingo-gray/30 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-lingo-blue transition-all duration-500"
+              style={{ width: `${savedPercentage}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Due cards */}
+        <div className="rounded-2xl border-2 border-lingo-border bg-white p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-lingo-text-light uppercase tracking-wider">
+                Active Reviews
+              </h3>
+              <span className="text-xl">⚡</span>
+            </div>
+            <p className="text-4xl font-black text-lingo-orange">{dueLevelCount}</p>
+            <p className="text-xs text-lingo-text-light mt-1">
+              Words due for immediate SRS practice
+            </p>
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-1 text-[11px] font-bold">
+            <span className="px-2 py-0.5 rounded-lg bg-lingo-gray/40 text-lingo-text-light">
+              {newLevelCount} New
+            </span>
+            <span className="px-2 py-0.5 rounded-lg bg-lingo-blue/15 text-lingo-blue">
+              {learningLevelCount} Active
+            </span>
+            <span className="px-2 py-0.5 rounded-lg bg-lingo-orange/15 text-lingo-orange">
+              {dueLevelCount} Due
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Suggestion banner */}
+      <div className="rounded-2xl border-2 border-lingo-border bg-amber-50/60 p-5 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <span className="text-3xl p-3 bg-amber-100 rounded-xl">{studySuggestion.icon}</span>
+        <div className="flex-1">
+          <h4 className="text-base font-black text-amber-900">{studySuggestion.title}</h4>
+          <p className="text-sm text-amber-800 mt-1 leading-relaxed">{studySuggestion.text}</p>
+        </div>
+      </div>
+
+      {/* Main Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Flashcard Performance Breakdown */}
+        <div className="rounded-2xl border-2 border-lingo-border bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-black text-lingo-text mb-4">
+            {levelConfig.shortLabel} Difficulty Profile
+          </h3>
+          <p className="text-xs text-lingo-text-light mb-4">
+            Analysis of {levelConfig.shortLabel} cards in active study, grouped by your rated quality feedback (Hard, OK, Easy):
+          </p>
+
+          {levelCards.filter((c) => c.status !== "new").length === 0 ? (
+            <div className="py-12 text-center text-sm text-lingo-text-light border-2 border-dashed border-lingo-border rounded-xl">
+              No performance stats yet. Study or review some {levelConfig.shortLabel} flashcards to populate analytics!
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Easy Progress bar */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-lingo-text-light mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-lingo-green" /> Easy (High Retention)
+                  </span>
+                  <span>
+                    {performanceBreakdown.easyCount} words (
+                    {Math.round(
+                      (performanceBreakdown.easyCount /
+                        levelCards.filter((c) => c.status !== "new").length) *
+                        100
+                    )}
+                    %)
+                  </span>
+                </div>
+                <div className="h-4 w-full bg-lingo-gray/30 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-lingo-green rounded-full"
+                    style={{
+                      width: `${
+                        (performanceBreakdown.easyCount /
+                          levelCards.filter((c) => c.status !== "new").length) *
+                        100
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* OK Progress bar */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-lingo-text-light mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-lingo-blue" /> OK (Stable Memory)
+                  </span>
+                  <span>
+                    {performanceBreakdown.okCount} words (
+                    {Math.round(
+                      (performanceBreakdown.okCount /
+                        levelCards.filter((c) => c.status !== "new").length) *
+                        100
+                    )}
+                    %)
+                  </span>
+                </div>
+                <div className="h-4 w-full bg-lingo-gray/30 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-lingo-blue rounded-full"
+                    style={{
+                      width: `${
+                        (performanceBreakdown.okCount /
+                          levelCards.filter((c) => c.status !== "new").length) *
+                        100
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Hard Progress bar */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-bold text-lingo-text-light mb-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Hard (Needs Review)
+                  </span>
+                  <span>
+                    {performanceBreakdown.hardCount} words (
+                    {Math.round(
+                      (performanceBreakdown.hardCount /
+                        levelCards.filter((c) => c.status !== "new").length) *
+                        100
+                    )}
+                    %)
+                  </span>
+                </div>
+                <div className="h-4 w-full bg-lingo-gray/30 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-red-500 rounded-full"
+                    style={{
+                      width: `${
+                        (performanceBreakdown.hardCount /
+                          levelCards.filter((c) => c.status !== "new").length) *
+                        100
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Detailed counter breakdown */}
+        <div className="rounded-2xl border-2 border-lingo-border bg-white p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 className="text-lg font-black text-lingo-text mb-4">Core Vocabulary Counter</h3>
+            <p className="text-xs text-lingo-text-light mb-4">
+              Your exact {levelConfig.shortLabel} elementary words progression details:
+            </p>
+
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-lingo-border/60">
+                <span className="font-bold text-lingo-text-light flex items-center gap-2">
+                  📖 Total Course Goal
+                </span>
+                <span className="font-black text-lingo-text">{totalLevelCount} words</span>
+              </div>
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-lingo-border/60">
+                <span className="font-bold text-lingo-text-light flex items-center gap-2">
+                  📂 Bookmarked & Saved
+                </span>
+                <span className="font-black text-lingo-blue">{savedLevelCount} words</span>
+              </div>
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-lingo-border/60">
+                <span className="font-bold text-lingo-text-light flex items-center gap-2">
+                  ⏳ Unopened / Remaining
+                </span>
+                <span className="font-black text-lingo-text-light">{remainingLevelCount} words</span>
+              </div>
+              <div className="flex items-center justify-between text-sm py-1.5 border-b border-lingo-border/60">
+                <span className="font-bold text-lingo-text-light flex items-center gap-2">
+                  🎓 Graduated (Learned)
+                </span>
+                <span className="font-black text-lingo-green-dark">{learnedLevelCount} words</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-lingo-border/60 flex items-center justify-between">
+            <span className="text-[11px] font-bold text-lingo-text-light uppercase tracking-wider">
+              {levelConfig.shortLabel} Active-to-Goal Ratio
+            </span>
+            <span className="text-xs font-black px-2 py-0.5 rounded bg-lingo-green/10 text-lingo-green-dark">
+              {savedLevelCount > 0 ? Math.round((learnedLevelCount / savedLevelCount) * 100) : 0}% Graduated
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
