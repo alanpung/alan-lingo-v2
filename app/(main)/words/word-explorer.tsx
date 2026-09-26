@@ -789,7 +789,7 @@ function formatRelativeDate(date: Date, now: Date): string {
   return `${(days / 365).toFixed(1)}yr`;
 }
 
-type CefrLevelFilter = "A1" | "A2" | "B1" | "B2" | "C1_C2";
+type CefrLevelFilter = "A2" | "B1" | "B2" | "C1_C2";
 
 const LEVEL_CONFIGS: Record<
   CefrLevelFilter,
@@ -802,14 +802,6 @@ const LEVEL_CONFIGS: Record<
     description: string;
   }
 > = {
-  A1: {
-    label: "A1 · Beginner",
-    shortLabel: "A1",
-    defaultGoal: 1000,
-    cefrLevels: ["A1"],
-    icon: "🌱",
-    description: "Beginner vocabulary core",
-  },
   A2: {
     label: "A2 · Elementary",
     shortLabel: "A2",
