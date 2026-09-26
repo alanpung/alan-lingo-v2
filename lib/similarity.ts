@@ -74,7 +74,7 @@ function normalizeWithMapping(s: string): NormalizedMapping {
   return { normalized, origIndices };
 }
 
-function normalize(s: string): string {
+export function normalize(s: string): string {
   return s
     .toLowerCase()
     .replace(/ß/g, "ss")
@@ -295,7 +295,12 @@ export function checkBestMatch(
   for (const answer of correctAnswers) {
     const result = checkSimilarity(userInput, answer, options);
     if (result.isCorrect && result.similarity === 1) return result;
-    if (!best || result.similarity > best.similarity) {
+
+    if (!best) {
+      best = result;
+    } else if (result.isCorrect && !best.isCorrect) {
+      best = result;
+    } else if (result.isCorrect === best.isCorrect && result.similarity > best.similarity) {
       best = result;
     }
   }

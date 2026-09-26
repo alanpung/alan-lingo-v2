@@ -25,6 +25,21 @@ export function Translation({ exercise, onResult, onContinue, language, autoplay
   const { status, checkAnswer } = useExercise();
   const { play, stop, prefetch, loading: audioLoading } = useAudio();
 
+  // Combine primary answer and acceptAlso, deduplicate, and limit to maximum 3 answers
+  const allAnswers = useMemo(() => {
+    const rawList = [exercise.answer, ...(exercise.acceptAlso || [])];
+    const list: string[] = [];
+    for (const item of rawList) {
+      if (!item) continue;
+      const trimmed = item.trim();
+      if (trimmed && !list.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) {
+        list.push(trimmed);
+      }
+      if (list.length >= 3) break; // Limit to maximum 3 answers
+    }
+    return list.length > 0 ? list : [exercise.answer];
+  }, [exercise.answer, exercise.acceptAlso]);
+
   const sentenceLang = useMemo(
     () => detectTextLanguage(exercise.sentence, { targetLanguage: language }),
     [exercise.sentence, language]
@@ -38,11 +53,11 @@ export function Translation({ exercise, onResult, onContinue, language, autoplay
     [exercise.answer, language]
   );
 
-  // Prefetch sentence and answer audio
+  // Prefetch sentence and all acceptable answer audio
   useEffect(() => {
-    const toFetch = [exercise.sentence, exercise.answer].filter(Boolean);
+    const toFetch = [exercise.sentence, ...allAnswers].filter(Boolean);
     prefetch(toFetch, language);
-  }, [exercise.sentence, exercise.answer, language, prefetch]);
+  }, [exercise.sentence, allAnswers, language, prefetch]);
 
   useEffect(() => {
     if (autoplayAudio && !exercise.noAudio?.includes("sentence")) {
@@ -53,7 +68,7 @@ export function Translation({ exercise, onResult, onContinue, language, autoplay
 
   function handleCheck() {
     const trimmed = input.trim();
-    const result = checkBestMatch(trimmed, [exercise.answer, ...exercise.acceptAlso]);
+    const result = checkBestMatch(trimmed, allAnswers);
     if (!result.isCorrect) setCorrectedMarkdown(result.correctedMarkdown);
     checkAnswer(result.isCorrect);
     onResult(result.isCorrect, trimmed);
@@ -66,6 +81,7 @@ export function Translation({ exercise, onResult, onContinue, language, autoplay
       onContinue={onContinue}
       canCheck={input.trim().length > 0}
       correctAnswer={exercise.answer}
+      allAnswers={allAnswers}
       correctedMarkdown={correctedMarkdown}
       language={answerLang}
     >
